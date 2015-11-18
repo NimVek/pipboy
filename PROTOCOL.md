@@ -6,7 +6,8 @@ The app send following broadcast packet to **UDP/28000**
 ```json
 {"cmd": "autodiscover"}
 ```
-It send receives a packet containing Information about the game. (only tested with PC)
+It send receives a packet containing Information about the game.
+The machine type is either `PC` or `PS4`.
 ```json
 {"IsBusy": false, "MachineType": "PC"}
 ```
@@ -18,7 +19,7 @@ The content is omitted because of possible privacy issues. (Can anyone explain m
 
 ## Communication
 
-On PC the App connects to the Game ob Port **TCP/27000**
+On PC and PS4 the App connects to the Game ob Port **TCP/27000**
 All data of the communication ist little-endian.
 The resulting stream can be separated in individual packets of following style.
 ```C

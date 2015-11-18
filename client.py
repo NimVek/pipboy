@@ -12,6 +12,11 @@ class PipBoyClient(cmd.Cmd):
     def __init__(self):
 	cmd.Cmd.__init__(self)
 	self.prompt = 'PipBoyClient: '
+	self.model = pipboy.Model()
+	self.model.register('update', self.listen_update)
+
+    def listen_update( self, ids):
+	print ids
 
     def emptyline(self):
 	pass
@@ -21,7 +26,7 @@ class PipBoyClient(cmd.Cmd):
 	    print server
 
     def _connect( self, server):
-	self.client = pipboy.TCPClient()
+	self.client = pipboy.TCPClient( self.model)
 	self.client.server = server
 	self.client.start()
 

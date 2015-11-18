@@ -16,7 +16,9 @@ class PipBoyClient(cmd.Cmd):
 	self.model.register('update', self.listen_update)
 
     def listen_update( self, ids):
-	print ids
+	for item in ids:
+	    print self.model.get_path(item)
+	    print self.model.get_item(item)
 
     def emptyline(self):
 	pass

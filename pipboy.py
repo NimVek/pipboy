@@ -169,6 +169,40 @@ class TCPFormat(object):
 class AppFormat(object):
     logger = logging.getLogger("pipboy.AppFormat")
 
+    spelling = ['ActiveEffects', 'BodyFlags', 'Caps', 'ClearedStatus',
+		'Clip', 'CurrAP', 'CurrCell', 'CurrHP', 'CurrWeight',
+		'CurrWorldspace', 'CurrentHPGain', 'Custom', 'DateDay',
+		'DateMonth', 'DateYear', 'Description', 'Discovered',
+		'Doors', 'EffectColor', 'Extents', 'FavIconType', 'HandleID',
+		'HeadCondition', 'HeadFlags', 'Height', 'HolotapePlaying',
+		'InvComponents', 'Inventory', 'IsDataUnavailable',
+		'IsInAnimation', 'IsInAutoVanity', 'IsInVats',
+		'IsInVatsPlayback', 'IsLoading', 'IsMenuOpen',
+		'IsPipboyNotEquipped', 'IsPlayerDead', 'IsPlayerInDialogue',
+		'IsPlayerMovementLocked', 'IsPlayerPipboyLocked',
+		'LArmCondition', 'LLegCondition', 'ListVisible',
+		'Local', 'LocationFormId', 'LocationMarkerFormId',
+		'Locations', 'Log', 'Map', 'MaxAP', 'MaxHP', 'MaxRank',
+		'MaxWeight', 'MinigameFormIds', 'Modifier', 'NEX', 'NEY',
+		'NWX', 'NWY', 'Name', 'OnDoor', 'PaperdollSection',
+		'PerkPoints', 'Perks', 'Player', 'PlayerInfo',
+		'PlayerName', 'PowerArmor', 'QuestId', 'Quests',
+		'RArmCondition', 'RLegCondition', 'RadawayCount',
+		'Radio', 'Rank', 'Rotation', 'SWFFile', 'SWX', 'SWY',
+		'Shared', 'SlotResists', 'SortMode', 'Special', 'StackID',
+		'Stats', 'Status', 'StimpakCount', 'TimeHour', 'TorsoCondition',
+		'TotalDamages', 'TotalResists', 'UnderwearType', 'Value',
+		'ValueType', 'Version', 'Visible', 'Workshop',
+		'WorkshopHappinessPct', 'WorkshopOwned', 'WorkshopPopulation',
+		'World', 'X', 'XPLevel', 'XPProgressPct', 'Y',
+		'canFavorite', 'damageType', 'diffRating', 'equipState',
+		'filterFlag', 'formID', 'inRange', 'isLegendary',
+		'isPowerArmorItem', 'itemCardInfoList', 'mapMarkerID',
+		'radawayObjectID', 'radawayObjectIDIsValid',
+		'scaleWithDuration', 'showAsPercent', 'showIfZero',
+		'sortedIDS', 'statArray', 'stimpakObjectID',
+		'stimpakObjectIDIsValid', 'taggedForSearch', 'workshopData']
+
     @staticmethod
     def __load_string(stream):
 	(size,) = struct.unpack('<I', stream.read(4))
@@ -209,6 +243,10 @@ class AppFormat(object):
 	value = {}
 	for i in range(0, _count):
 	    name = AppFormat.__load_string(stream)
+	    for x in AppFormat.spelling:
+		if x.lower() == name.lower():
+		    name = x
+		    break
 	    (_id, child) = AppFormat.__load_type(stream)
 	    value[name] = _id
 	    children += child
@@ -291,13 +329,46 @@ class BuiltinFormat(object):
 class Model(object):
     logger = logging.getLogger('pipboy.Model')
 
+    __startup = {
+	    'Inventory': {},
+	    "Log": [],
+	    "Map": {},
+	    "Perks": [],
+	    "PlayerInfo": {},
+	    "Quests": [],
+	    "Radio": [],
+	    "Special": [],
+	    "Stats": {},
+	    "Status": {
+		"EffectColor": [
+		    0.08,
+		    1.0,
+		    0.09
+		],
+		"IsDataUnavailable": True,
+		"IsInAnimation": False,
+		"IsInAutoVanity": False,
+		"IsInVats": False,
+		"IsInVatsPlayback": False,
+		"IsLoading": False,
+		"IsMenuOpen": False,
+		"IsPipboyNotEquipped": True,
+		"IsPlayerDead": False,
+		"IsPlayerInDialogue": False,
+		"IsPlayerMovementLocked": False,
+		"IsPlayerPipboyLocked": False
+	    },
+	    "Workshop": []
+	}
+
     def __clear(self):
 	self.__path = {}
 	self.__items = {}
 
     def __init__( self ):
-	self.__clear()
-	self.listener = { 'update': []}
+	super(Model, self).__init__()
+	self.listener = { 'update': [], 'command': [] }
+	self.load(BuiltinFormat.load( Model.__startup))
 
     def register( self, typ, function):
 	self.listener[typ].append( function)
@@ -329,6 +400,19 @@ class Model(object):
     def load( self, items):
 	self.__clear()
 	self.update(items)
+
+    def dump( self, _id = 0, recursive = False):
+	item = self.__items[_id]
+	result = []
+	if recursive:
+	    if type(item) == list:
+		for child in item:
+		    result += self.dump( child, recursive)
+	    elif type(item) == dict:
+		for child in item.values():
+		    result += self.dump( child, recursive)
+	result.append([ _id, item])
+	return result
 
 class PipBoy(object):
     def _clear(self):
@@ -475,3 +559,48 @@ class TCPClient(TCPBase):
 	else:
 	    self.logger.warn("Error Unknown Channel %d" % ( channel))
 	self.send( 0, '')
+
+class TCPServer(TCPBase):
+    def __init__( self, model = Model() ):
+	super(TCPServer, self).__init__(model)
+	self.logger = logging.getLogger('pipboy.TCPServer')
+	self.model.register('update',self.listen_update)
+
+    server = None
+
+    def __send_updates(self, items):
+	stream = StringIO.StringIO()
+	TCPFormat.dump( items, stream)
+	self.send( 3, stream.getvalue())
+
+    def listen_update(self, items):
+	if self.socket:
+	    updates = []
+	    for item in items:
+		updates += self.model.dump( item, False)
+	    self.__send_updates( updates)
+
+    def pre(self):
+	self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	self.server.bind(('', TCP_PORT))
+	self.server.listen(1)
+	connection, addr = self.server.accept()
+	self.socket = connection
+	self.send( 1, json.dumps( { 'lang': 'de', 'version': '1.1.30.0' }))
+	self.__send_updates( self.model.dump(0,True))
+
+    def run(self):
+	(channel, data) = self.receive()
+	if channel == 0:
+	    pass
+	elif channel == 1:
+		    self.logger.debug(json.loads(data))
+	elif channel == 3:
+	    stream = StringIO.StringIO(data)
+	    self.model.update(TCPFormat.load(stream))
+	elif channel == 5:
+	    self.logger.debug(json.loads(data))
+	else:
+	    self.logger.warn("Error Unknown Channel %d" % ( channel))
+	self.send( 0, '')
+

@@ -7,6 +7,7 @@ import json
 import StringIO
 import threading
 import SocketServer
+import cmd
 
 import logging
 
@@ -491,7 +492,7 @@ class UDPHandler(SocketServer.DatagramRequestHandler):
 	try:
 	    data = json.load(self.rfile)
 	except Exception, e:
-	    print e
+	    self.logger.error(str(e))
 	if data and data.get('cmd') == 'autodiscover':
 	    json.dump({ 'IsBusy': False, 'MachineType': 'PC' },
 			self.wfile)
@@ -635,3 +636,33 @@ class TCPServer(TCPBase):
 	    self.logger.warn("Error Unknown Channel %d" % ( channel))
 	self.send( 0, '')
 
+class Console(cmd.Cmd):
+    logger = logging.getLogger('pipboy.Console')
+    def __init__(self):
+	cmd.Cmd.__init__(self)
+	self.prompt = 'PipBoy: '
+	self.model = Model()
+
+    def emptyline(self):
+	pass
+
+    def do_EOF(self, line):
+	return True
+
+    def complete_loglevel( self, text, line, begidx, endidx):
+	return [i for i in logging._levelNames if type(i) == str and i.startswith(text)]
+
+    def do_loglevel( self, line):
+	try:
+	    logging.getLogger().setLevel( line)
+	except Exception, e:
+	    logging.error(e)
+
+    def do_discover( self, line):
+	self.discover = UDPClient.discover()
+	for server in self.discover:
+	    print server
+
+
+if __name__ == '__main__':
+    Console().cmdloop()

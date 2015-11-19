@@ -6,10 +6,9 @@ import socket
 import json
 import StringIO
 import threading
+import SocketServer
 
 import logging
-import pprint
-pp = pprint.PrettyPrinter()
 
 TCP_PORT = 27000
 UDP_PORT = 28000
@@ -484,6 +483,38 @@ class UDPClient(object):
 	    except socket.timeout, e:
 		timeout = True
 	return result
+
+class UDPHandler(SocketServer.DatagramRequestHandler):
+    logger = logging.getLogger('pipboy.UDPHandler')
+
+    def handle(self):
+	try:
+	    data = json.load(self.rfile)
+	except Exception, e:
+	    print e
+	if data and data.get('cmd') == 'autodiscover':
+	    json.dump({ 'IsBusy': False, 'MachineType': 'PC' },
+			self.wfile)
+	    self.logger.info('autodiscover from %s:%d' % self.client_address)
+	else:
+	    self.logger.debug('unrecognized request from (%s): %s'
+		    % (( "%s:%d" % self.client_address), self.rfile.getvalue()) )
+
+class UDPServer(object):
+    logger = logging.getLogger('pipboy.UDPServer')
+
+    def start(self):
+	self.server = SocketServer.ThreadingUDPServer(('', UDP_PORT), UDPHandler)
+	self.thread = threading.Thread(target=self.server.serve_forever)
+	self.thread.daemon = True
+	self.thread.start()
+	self.logger.info('UDPServer started')
+
+    def stop(self):
+	self.server.shutdown()
+	self.server.server_close()
+	self.thread.join()
+	self.logger.info('UDPServer stoped')
 
 class TCPBase(object):
     def __init__( self, model):

@@ -8,6 +8,8 @@ import StringIO
 import threading
 import SocketServer
 import cmd
+import readline
+import re
 
 import logging
 
@@ -374,7 +376,7 @@ class Model(object):
 	self.listener[typ].append( function)
 
     def get_item( self, _id ):
-	return self.__items[_id]
+	return self.__items.get( _id)
 
     def get_path( self, _id ):
 	if _id == 0:
@@ -382,6 +384,30 @@ class Model(object):
 	else:
 	    (name, parent) = self.__path[_id]
 	    return self.get_path(parent) + name
+
+    def __get_id(self, _id, path):
+	if not path:
+	    return _id
+	match = re.match('^(\.([a-zA-Z0-9]+)|\[([0-9]+)\])(.*)$', path)
+	if match:
+	    item = self.get_item( _id)
+	    groups =  match.groups()
+	    if groups[1] and type(item) == dict:
+		for k, v in item.items():
+		    if k.lower() == groups[1].lower():
+			return self.__get_id( v, groups[3])
+	    elif groups[2] and type(item) == list:
+		try:
+		    idx = int(groups[2])
+		    return self.__get_id( item[idx], groups[3])
+		except Exception, e:
+		    self.logger.error(str(e))
+	return None
+
+    def get_id(self, path):
+	if path.startswith('$'):
+	    return self.__get_id( 0, path[1:])
+	return None
 
     def update( self, items):
 	changed = []
@@ -467,22 +493,31 @@ class PipBoy(object):
 	print "DONE"
 
 class UDPClient(object):
+    logger = logging.getLogger('pipboy.UDPClient')
+
     @staticmethod
-    def discover():
+    def discover(timeout = 5, count = None, busy_allowed = True):
 	udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, True)
-	udp_socket.settimeout(5)
+	udp_socket.settimeout(timeout)
 	udp_socket.sendto(json.dumps({'cmd': 'autodiscover'}), ('<broadcast>', UDP_PORT))
 	result = []
-	timeout = False
-	while not timeout:
+	polling = True
+	while polling:
 	    try:
 		received, fromaddr = udp_socket.recvfrom(1024)
-		data = json.loads(received)
-		data['IpAddr'] = fromaddr[0]
-		result.append(data)
+		try:
+		    data = json.loads(received)
+		    if busy_allowed or data.get('IsBusy') == False:
+			data['IpAddr'] = fromaddr[0]
+			result.append(data)
+			if len(result) >= count:
+			    polling = False
+		except Exception, e:
+		    self.logger.debug('unrecognized answer from (%s): %s'
+			% (( "%s:%d" % fromaddr), received) )
 	    except socket.timeout, e:
-		timeout = True
+		polling = False
 	return result
 
 class UDPHandler(SocketServer.DatagramRequestHandler):
@@ -640,8 +675,11 @@ class Console(cmd.Cmd):
     logger = logging.getLogger('pipboy.Console')
     def __init__(self):
 	cmd.Cmd.__init__(self)
+	logging.basicConfig()
 	self.prompt = 'PipBoy: '
 	self.model = Model()
+	readline.set_completer_delims(
+	    readline.get_completer_delims().translate( None, '$[]'))
 
     def emptyline(self):
 	pass
@@ -656,13 +694,104 @@ class Console(cmd.Cmd):
 	try:
 	    logging.getLogger().setLevel( line)
 	except Exception, e:
-	    logging.error(e)
+	    self.logger.error(e)
+
+    __discover = None
 
     def do_discover( self, line):
-	self.discover = UDPClient.discover()
-	for server in self.discover:
+	self.__discover = UDPClient.discover()
+	for server in self.__discover:
 	    print server
 
+    def complete_connect( self, text, line, begidx, endidx):
+	if not self.__discover:
+	    self.__discover = UDPClient.discover(timeout = 2, busy_allowed = False)
+	return [ server['IpAddr'] for server in self.__discover if server['IpAddr'].startswith(text) ]
+
+    def do_connect(self, line):
+	print "Connect - %s" % line
+
+    def do_autoconnect(self, line):
+	if not self.__discover:
+	    self.__discover = UDPClient.discover(timeout = 2, count = 1, busy_allowed = False)
+	print "Connect - %s" % line
+
+    def __complete_path(self, text):
+	if not text:
+	    return [ '$' ]
+	else:
+	    _id = self.model.get_id( text)
+	    self.logger.debug(str(_id))
+	    if _id == None:
+		tmp = re.split('(\.|\[)[^.[]*$', text)
+		_id = self.model.get_id( tmp[0])
+	    if _id != None:
+		item = self.model.get_item( _id)
+		if item:
+		    children = None
+		    if type(item) == list:
+			children = item
+		    elif type(item) == dict:
+			children = item.values()
+		    if children:
+			result = []
+			for child in children:
+			    child_path = self.model.get_path(child)
+			    if child_path and child_path.lower().startswith(text.lower()):
+				result.append( child_path)
+			return result
+	return None
+
+    def complete_get(self, text, line, begidx, endidx):
+	return self.__complete_path(text)
+
+    def do_get( self, line):
+	for path in re.split('\s+',line.strip()):
+	    _id = self.model.get_id( path)
+	    if type(_id) == int:
+		print "0x%x - %s" % ( _id, str(self.model.get_item( _id)))
+	    else:
+		print "Path not found - %s" % path
+
+    def complete_set(self, text, line, begidx, endidx):
+	return self.__complete_path(text)
+
+    def do_set( self, line):
+	args = line.split( ' ', 1)
+	_id = self.model.get_id( args[0])
+	if type(_id) == int:
+	    value = args[1].strip()
+	    try:
+		value = json.loads(value)
+	    except Exception, e:
+		self.logger.debug(str(e))
+	    item = self.model.get_item( _id)
+	    if type(item) != type(value):
+		print "Type mismatch must be %s" % type(item)
+	    else:
+		self.model.update([[ _id, value ]])
+	else:
+	    print "Path not found"
+
+    def do_load( self, line):
+	with open(line, 'rb') as stream:
+	    try:
+		self.model.load(TCPFormat.load(stream))
+	    except Exception, e:
+		self.logger.error(e)
+		print "Not in TCPFormat - %s" % line
+
+    def do_save( self, line):
+	with open(line, 'wb') as stream:
+	    TCPFormat.dump(self.model.dump(0, True), stream)
+
+    def do_loadapp( self, line):
+	with open(line, 'rb') as stream:
+	    try:
+		self.model.load(AppFormat.load(stream))
+	    except Exception, e:
+		self.logger.error(e)
+		print "Not in AppFormat - %s" % line
 
 if __name__ == '__main__':
     Console().cmdloop()

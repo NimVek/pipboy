@@ -147,10 +147,10 @@ The type is seen in range of 0 to 14, the args differ on type and the id increme
 
 |  Type  |  Args  | Comment  |
 |---|---|---|
-|  0  |  `[ <handleId>, 0, <$.Inventory.Version> ]`  | Use an instance of item specified by `<handleId>`  |
-|  1  |  `[ <handleId>, <count>, <$.Inventory.Version>, <additional> ]`  | Drop `<count>` instances of item, for single item `<additional> = [0]`, else `<additional> = [0,1]`  |
-|  2  |  `[<handleId>, [0], <position>, <$.Inventory.Version>]` | Put item on favorite `<position>` counts from far left 0 to right 5, and north 6 to south 11  |
-|  3  |  `[<componentFormId>, <$.Inventory.Version>]` | Toggle *Tag for search* on component specified by `<componentFormId>`  |
+|  0  |  `[ <HandleId>, 0, <$.Inventory.Version> ]`  | Use an instance of item specified by `<HandleId>`  |
+|  1  |  `[ <HandleId>, <count>, <$.Inventory.Version>, <StackID> ]`  | Drop `<count>` instances of item, `<StackID>` is the whole list under `StackID`  |
+|  2  |  `[<HandleId>, <StackID>, <position>, <$.Inventory.Version>]` | Put item on favorite `<position>` counts from far left 0 to right 5, and north 6 to south 11  |
+|  3  |  `[<ComponentFormId>, <$.Inventory.Version>]` | Toggle *Tag for search* on component specified by `<ComponentFormId>`  |
 |  4  |  `[<page>]` | Cycle through search mode on inventory page ( 0: Weapons, 1: Apparel, 2: Aid, 3: Misc, 4: Junk, 5: Mods, 6: Ammo )  |
 |  5  |  `[<QuestId>, ??, ??]` | Toggle marker for quest |
 |  6  |  `[ <x>, <y>, false ]` | Place custom marker at `<x>,<y>` |

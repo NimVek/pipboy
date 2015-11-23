@@ -43,6 +43,11 @@ On connect the first and only packet the Game sends contains some additional Inf
 {"lang": "de", "version": "1.1.30.0"}
 ```
 
+### Channel 2 (Busy)
+
+Signals the game is busy and your are not allowed to logon.
+The size of the packets are always *zero*.
+
 ### Channel 3 (Database Update)
 
 This channel contains binary data the second packet of the server contains the whole database.
@@ -51,46 +56,47 @@ The database ist is a array of items while lists or dicts reference to the index
 
 ```C
 struct Entry {
-  uint8_t type,
-  uint32_t id,
+  uint8_t type;
+  uint32_t id;
   switch (type) {
     case 0:
-      uint8_t boolean,
+      uint8_t boolean;
       break;
     case 1:
-      sint8_t integer,
+      sint8_t integer;
       break;
     case 2:
-      uint8_t integer,
+      uint8_t integer;
       break;
     case 3:
-      sint32_t integer,
+      sint32_t integer;
       break;
     case 4:
-      uint32_t integer,
+      uint32_t integer;
       break;
     case 5:
-      float32_t floating_point,
+      float32_t floating_point;
       break;
     case 6:
-      char_t *string, // zero-terminated
+      char_t *string; // zero-terminated
       break;
     case 7: // list
-      uint16_t count,
-      uint32_t references[count]
+      uint16_t count;
+      uint32_t references[count];
       break;
     case 8:
-      uint16_t count,
-      DictEntry[count],
-      uint16_t dummy, // is always zero
+      uint16_t insert_count;
+      DictEntry[insert_count];
+      uint16_t remove_count;
+      uint32_t references[remove_count];
       break;
   }
-}
+};
 
 struct DictEntry {
-      uint32_t reference,
-      char_t *name // zero-terminated
-}
+      uint32_t reference;
+      char_t *name; // zero-terminated
+};
 ```
 #### Example Database
 

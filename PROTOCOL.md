@@ -30,7 +30,7 @@ struct Packet {
 }
 ```
 
-### Channel 0
+### Channel 0 (Heartbeat)
 
 Seems to be for keep alive only.
 The size of the packets are always *zero*, so no additional information are served.
@@ -43,7 +43,7 @@ On connect the first and only packet the Game sends contains some additional Inf
 {"lang": "de", "version": "1.1.30.0"}
 ```
 
-### Channel 3
+### Channel 3 (Database Update)
 
 This channel contains binary data the second packet of the server contains the whole database.
 Future packets do only updates to database.
@@ -116,10 +116,57 @@ will result in this database
 | 5 | "two" |
 | 6 | 3 |
 
-### Channel 5
+### Channel 4 (Local Map Update)
+
+The game sends binary imagedata wich is displayed if you choose local map on your app.
+Its seems to be rendered each time so maybe, we are able to detect movement? Lets see in future ;)
+
+```C
+struct Extend {
+  float32_t x,
+  float32_t y
+}
+
+struct Map {
+      uint32_t width,
+      uint32_t height,
+      Extend nw,
+      Extend ne,
+      Extend sw,
+      uint8_t pixel[ width * height ]
+}
+```
+
+### Channel 5 (Command Request)
 
 The app send commands to the game over this channel.
 The type is seen in range of 0 to 14, the args differ on type and the id increments with every command send.
 ```JSON
-{"type": 14, "args": [], "id": 6}
+{"type": 1, "args": [4207600675, 7, 494, [0, 1]], "id": 3}
+```
+
+|  Type  |  Args  | Comment  |
+|---|---|---|
+|  0  |  `[ <handleId>, 0, <$.Inventory.Version> ]`  | Use an instance of item specified by `<handleId>`  |
+|  1  |  `[ <handleId>, <count>, <$.Inventory.Version>, <additional> ]`  | Drop `<count>` instances of item, for single item `<additional> = [0]`, else `<additional> = [0,1]`  |
+|  2  |  `[<handleId>, [0], <position>, <$.Inventory.Version>]` | Put item on favorite `<position>` counts from far left 0 to right 5, and north 6 to south 11  |
+|  3  |  `[<componentFormId>, <$.Inventory.Version>]` | Toggle *Tag for search* on component specified by `<componentFormId>`  |
+|  4  |  `[<page>]` | Cycle through search mode on inventory page ( 0: Weapons, 1: Apparel, 2: Aid, 3: Misc, 4: Junk, 5: Mods, 6: Ammo )  |
+|  5  |  `[<QuestId>, ??, ??]` | Toggle marker for quest |
+|  6  |  `[ <x>, <y>, false ]` | Place custom marker at `<x>,<y>` |
+|  7  |  `[]`  | remove custom marker  |
+|  8  |   |   |
+|  9  |  `[<id>]` | Fast travel to location with index `<id>` in database  |
+|  10  |   |   |
+|  11  |   |   |
+|  12  |  `[<id>]`  |  Toggle radio with index `<id>` in database   |
+|  13  |  `[]`   |  Toggle receiving of local map update   |
+|  14  |  `[]`   |  Refresh?? Command with no result   |
+
+### Channel 6 (Command Response)
+
+Is a response channel for commands sends by app, only seen for command type `6`
+
+```JSON
+{"allowed":true,"id":3,"success":true}
 ```

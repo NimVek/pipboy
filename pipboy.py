@@ -57,7 +57,9 @@ class TCPFormat(object):
 	    (ref,) = struct.unpack('<I', stream.read(4))
 	    attribute = TCPFormat.__load_cstr(stream)
 	    value[attribute] = ref
-	(_unknown,) = struct.unpack('<H', stream.read(2))
+	(_count,) = struct.unpack('<H', stream.read(2))
+	for i in range(0,_count):
+	    (ref,) = struct.unpack('<I', stream.read(4))
 	return value
 
     @staticmethod
@@ -375,7 +377,7 @@ class Model(object):
 
     def __init__( self ):
 	super(Model, self).__init__()
-	self.listener = { 'update': [], 'command': [] }
+	self.listener = { 'update': [], 'command': [], 'map_update': [] }
 	self.load(BuiltinFormat.load( Model.__startup))
 
     def register( self, typ, function):
@@ -435,6 +437,10 @@ class Model(object):
     def command( self, _type, args):
 	for func in self.listener['command']:
 	    func(_type, args)
+
+    def map_update( self, data):
+	for func in self.listener['map_update']:
+	    func(data)
 
     def load( self, items):
 	self.__clear()
@@ -560,6 +566,7 @@ class TCPHandler:
 
     def __handle_map( self, data):
 	self.logger.debug("handle_map")
+	self.model.map_update(data)
 
     def __handle_command( self, data):
 	self.logger.debug("handle_command")
@@ -605,6 +612,9 @@ class TCPServerHandler(TCPHandler, SocketServer.StreamRequestHandler):
 	    updates += self.model.dump( item, False)
 	self.send_updates( updates)
 
+    def listen_map_update(self, data):
+	self.send( 4, data)
+
     def setup(self):
 	self.logger.debug("setup")
 	SocketServer.StreamRequestHandler.setup(self)
@@ -612,6 +622,7 @@ class TCPServerHandler(TCPHandler, SocketServer.StreamRequestHandler):
 	self.send( 1, json.dumps( { 'lang': 'en', 'version': '1.1.30.0' }))
 	self.send_updates( self.model.dump(0,True))
 	self.model.register('update',self.listen_update)
+	self.model.register('map_update',self.listen_map_update)
 
     def finish(self):
 	self.logger.debug("finish")
@@ -696,6 +707,7 @@ class View(object):
 	self.model = model
 	model.register('update',self.listen_update)
 	model.register('command',self.listen_command)
+	model.register('map_update',self.listen_map_update)
 
     def listen_update(self, items):
 	for item in items:
@@ -711,6 +723,8 @@ class View(object):
     def listen_command(self, _type, args):
 	print _type, args
 
+    def listen_map_update(self, data):
+	pass
 
 class Console(cmd.Cmd):
     logger = logging.getLogger('pipboy.Console')
@@ -860,6 +874,17 @@ class Console(cmd.Cmd):
     def do_threads(self, line):
 	for th in threading.enumerate():
 	    print th
+
+    def do_rawcmd( self, line):
+	args = line.split( ' ', 1)
+	try:
+	    command = int(args[0])
+	    value = args[1].strip()
+	    value = json.loads(value)
+	    print command, value
+	    self.model.command( command, value)
+	except Exception, e:
+	    self.logger.error(str(e))
 
 if __name__ == '__main__':
     Console().cmdloop()

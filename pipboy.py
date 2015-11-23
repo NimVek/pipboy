@@ -10,6 +10,7 @@ import SocketServer
 import cmd
 import readline
 import re
+import time
 
 import logging
 
@@ -317,7 +318,7 @@ class BuiltinFormat(object):
 
     @staticmethod
     def __dump_model(model, _id):
-	result = model.get_items(_id)
+	result = model.get_item(_id)
 	if type(result) == list:
 	    result = [ BuiltinFormat.__dump_model(model,v) for v in result ]
 	elif type(result) == dict:
@@ -330,6 +331,11 @@ class BuiltinFormat(object):
 
 class Model(object):
     logger = logging.getLogger('pipboy.Model')
+
+    server = { 'info': { 'lang': 'en', 'version': '1.1.30.0' },
+	       'run_server': False,
+	       'run_client': False
+	     }
 
     __startup = {
 	    'Inventory': {},
@@ -374,6 +380,9 @@ class Model(object):
 
     def register( self, typ, function):
 	self.listener[typ].append( function)
+
+    def unregister( self, typ, function):
+	self.listener[typ].remove( function)
 
     def get_item( self, _id ):
 	return self.__items.get( _id)
@@ -423,6 +432,10 @@ class Model(object):
 	for func in self.listener['update']:
 	    func(changed)
 
+    def command( self, _type, args):
+	for func in self.listener['command']:
+	    func(_type, args)
+
     def load( self, items):
 	self.__clear()
 	self.update(items)
@@ -439,58 +452,6 @@ class Model(object):
 		    result += self.dump( child, recursive)
 	result.append([ _id, item])
 	return result
-
-class PipBoy(object):
-    def _clear(self):
-	self._path = {}
-	self._items = {}
-
-    def __init__( self ):
-	self.logger = logging.getLogger('pipboy.PipBoy')
-	self._clear()
-
-
-    def _convert_str(self, string):
-	if type(string) == unicode:
-	    return string.encode('utf8')
-	else:
-	    return string
-
-    def _load_type(self, item ):
-	_id = len(self._items)
-	self._items[_id] = item
-	self._convert_str(item)
-	if type(item) == unicode:
-	    self._items[_id] = item.encode('utf8')
-	elif type(item) == list:
-	    self._items[_id] = [ self._load_type(child) for child in item ]
-	elif type(item) == dict:
-	    self._items[_id] = { self._convert_str(k): self._load_type(v) for k,v in item.items() }
-	return _id
-
-    def load_type( self, item ):
-	self._clear()
-	self._load_type( item )
-	inventory = self._items[0]['Inventory']
-	inventory = self._items[inventory]
-	sorted_ids = inventory['sortedIDS']
-	sorted_ids = self._items[sorted_ids]
-	print "START"
-	print len(sorted_ids)
-	all_ids = []
-	for k,v in inventory.items():
-	    tmp = self._items[v]
-	    if k.isdigit():
-		all_ids += tmp
-		print len(tmp)
-	sorted_i = []
-	for i in all_ids:
-	    _id = len(self._items)
-	    self._items[_id] = i
-	    sorted_i.append(_id)
-	sorted_ids = inventory['sortedIDS']
-	self._items[sorted_ids] = sorted_i
-	print "DONE"
 
 class UDPClient(object):
     logger = logging.getLogger('pipboy.UDPClient')
@@ -536,140 +497,220 @@ class UDPHandler(SocketServer.DatagramRequestHandler):
 	    self.logger.debug('unrecognized request from (%s): %s'
 		    % (( "%s:%d" % self.client_address), self.rfile.getvalue()) )
 
-class UDPServer(object):
+class UDPServer(SocketServer.ThreadingUDPServer):
     logger = logging.getLogger('pipboy.UDPServer')
 
+    def __init__( self, model):
+	self.model = model
+	SocketServer.ThreadingUDPServer.__init__(self,('', UDP_PORT), UDPHandler)
+
+class ServerThread(object):
+    logger = logging.getLogger('pipboy.Thread')
+
+    def __init__(self, model, ServerClass):
+	self.model = model
+	self.ServerClass = ServerClass
+
     def start(self):
-	self.server = SocketServer.ThreadingUDPServer(('', UDP_PORT), UDPHandler)
-	self.thread = threading.Thread(target=self.server.serve_forever)
+	self.server = self.ServerClass( self.model)
+	self.thread = threading.Thread(target=self.server.serve_forever, name=self.ServerClass.__name__)
 	self.thread.daemon = True
 	self.thread.start()
-	self.logger.info('UDPServer started')
+	self.logger.info('%s started' % self.ServerClass.__name__ )
 
     def stop(self):
 	self.server.shutdown()
 	self.server.server_close()
 	self.thread.join()
-	self.logger.info('UDPServer stoped')
+	self.logger.info('%s stopped' % self.ServerClass.__name__ )
 
-class TCPBase(object):
-    def __init__( self, model):
-	super(TCPBase, self).__init__()
-	self.logger = logging.getLogger('pipboy.TCPBase')
-	self.socket = None
-	self.model = model
+
+class TCPHandler:
+    logger = logging.getLogger('pipboy.TCPHandler')
 
     def receive(self):
-	header = self.socket.recv(5)
+	self.logger.debug("receive")
+	header = self.rfile.read(5)
 	size, channel = struct.unpack('<IB', header)
-	data = ''
-	while size > 0:
-	    tmp = self.socket.recv(size)
-	    data += tmp
-	    size -= len(tmp)
+	data = self.rfile.read(size)
 	return ( channel, data )
 
     def send(self, channel, data):
+	self.logger.debug("send")
 	header = struct.pack('<IB', len(data), channel)
-	self.socket.send(header)
-	self.socket.send(data)
+	self.wfile.write(header)
+	self.wfile.write(data)
 
-    serve = False
-    thread = None
-
-    def start(self):
-	self.thread = threading.Thread(target=self.__run, name=type(self).__name__)
-	self.thread.daemon = True
-	self.thread.start()
-    
-    def pre():
-	pass
-
-    def run():
-	pass
-
-    def post():
-	if socket:
-	    socket.close()
-
-    def __run(self):
-	self.pre()
-	self.serve = True
-	while self.serve:
-	    self.run()
-	self.post()
-
-    def stop(self):
-	self.serve = False
-	thread.join()
-
-class TCPClient(TCPBase):
-    def __init__( self, model = Model() ):
-	super(TCPClient, self).__init__(model)
-	self.logger = logging.getLogger('pipboy.TCPClient')
-
-    server = None
-
-    def pre(self):
-	self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	self.socket.connect((self.server, TCP_PORT))
-
-    def run(self):
-	(channel, data) = self.receive()
-	if channel == 0:
-	    pass
-	elif channel == 1:
-	    pass
-	elif channel == 3:
-	    stream = StringIO.StringIO(data)
-	    self.model.update(TCPFormat.load(stream))
-	else:
-	    self.logger.warn("Error Unknown Channel %d" % ( channel))
+    def __handle_heartbeat( self, data):
+	self.logger.debug("handle_heartbeat")
 	self.send( 0, '')
 
-class TCPServer(TCPBase):
-    def __init__( self, model = Model() ):
-	super(TCPServer, self).__init__(model)
-	self.logger = logging.getLogger('pipboy.TCPServer')
-	self.model.register('update',self.listen_update)
+    def __handle_config( self, data):
+	self.logger.debug("handle_config")
+	try:
+	    config = json.loads(data)
+	    self.logger.info(str(config))
+	except Exception, e:
+	    self.logger.error(str(e))
 
-    server = None
+    def __handle_update( self, data):
+	self.logger.debug("handle_update")
+	stream = StringIO.StringIO(data)
+	self.model.update(TCPFormat.load(stream))
 
-    def __send_updates(self, items):
+    def __handle_map( self, data):
+	self.logger.debug("handle_map")
+
+    def __handle_command( self, data):
+	self.logger.debug("handle_command")
+	try:
+	    command = json.loads(data)
+	    self.model.command( command['type'], command['args'])
+	except Exception, e:
+	    self.logger.error(str(e))
+
+    __handler = { 0: __handle_heartbeat,
+		  1: __handle_config,
+		  3: __handle_update,
+		  4: __handle_map,
+		  5: __handle_command }
+
+    def handle(self):
+	self.logger.debug("handle")
+	while self.model.server[self.switch]:
+	    (channel, data) = self.receive()
+	    if channel in self.__handler:
+		self.__handler[channel](self, data)
+	    else:
+		self.logger.warn("Error Unknown Channel %d : %s" % ( channel, data))
+
+    def send_updates(self, items):
 	stream = StringIO.StringIO()
 	TCPFormat.dump( items, stream)
 	self.send( 3, stream.getvalue())
 
-    def listen_update(self, items):
-	if self.socket:
-	    updates = []
-	    for item in items:
-		updates += self.model.dump( item, False)
-	    self.__send_updates( updates)
+    __command_idx = 1
 
-    def pre(self):
-	self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	self.server.bind(('', TCP_PORT))
-	self.server.listen(1)
-	connection, addr = self.server.accept()
-	self.socket = connection
-	self.send( 1, json.dumps( { 'lang': 'de', 'version': '1.1.30.0' }))
-	self.__send_updates( self.model.dump(0,True))
+    def send_command(self, _type, args):
+	self.send( 5, json.dumps( { 'type': _type, 'args': args, 'id': self.__command_idx }))
+	self.__command_idx += 1
+
+class TCPServerHandler(TCPHandler, SocketServer.StreamRequestHandler):
+    logger = logging.getLogger('pipboy.TCPServerHandler')
+    switch = 'run_server'
+
+    def listen_update(self, items):
+	updates = []
+	for item in items:
+	    updates += self.model.dump( item, False)
+	self.send_updates( updates)
+
+    def setup(self):
+	self.logger.debug("setup")
+	SocketServer.StreamRequestHandler.setup(self)
+	self.model = self.server.model
+	self.send( 1, json.dumps( { 'lang': 'en', 'version': '1.1.30.0' }))
+	self.send_updates( self.model.dump(0,True))
+	self.model.register('update',self.listen_update)
+
+    def finish(self):
+	self.logger.debug("finish")
+	self.model.unregister('update',self.listen_update)
+	SocketServer.StreamRequestHandler.finish(self)
+
+class TCPServer(SocketServer.ThreadingTCPServer):
+    def __init__( self, model):
+	self.model = model
+	SocketServer.ThreadingTCPServer.__init__(self,('', TCP_PORT), TCPServerHandler)
+
+    def server_activate(self):
+	self.model.server['run_server'] = True
+	SocketServer.ThreadingTCPServer.server_activate(self)
+
+    def shutdown(self):
+	self.model.server['run_server'] = True
+	SocketServer.ThreadingTCPServer.shutdown(self)
+
+class TCPClientHandler(TCPHandler, SocketServer.StreamRequestHandler):
+    logger = logging.getLogger('pipboy.TCPClientHandler')
+    switch = 'run_client'
+
+    def heartbeat(self):
+	while self.model.server[self.switch]:
+	    self.logger.debug("heartbeat")
+	    self.send( 0, '')
+	    time.sleep(1)
+
+    def listen_command(self, _type, args):
+	self.send_command( _type, args)
+
+    def setup(self):
+	self.logger.debug("setup")
+	SocketServer.StreamRequestHandler.setup(self)
+	self.model = self.server.model
+	self.model.register('command',self.listen_command)
+	thread = threading.Thread(target=self.heartbeat, name="Heartbeat")
+	thread.start()
+
+    def finish(self):
+	self.logger.debug("finish")
+	self.hb = False
+	self.model.unregister('command',self.listen_command)
+	SocketServer.StreamRequestHandler.finish(self)
+
+class TCPClient(object):
+    logger = logging.getLogger('pipboy.TCPClient')
+
+    def connect(self, server, model):
+	self.model = model
+	self.server = server
+	self.thread = threading.Thread(target=self.run, name=self.__class__.__name__)
+	self.thread.daemon = True
+	self.thread.start()
+	self.logger.info('%s started' % self.__class__.__name__ )
 
     def run(self):
-	(channel, data) = self.receive()
-	if channel == 0:
-	    pass
-	elif channel == 1:
-		    self.logger.debug(json.loads(data))
-	elif channel == 3:
-	    stream = StringIO.StringIO(data)
-	    self.model.update(TCPFormat.load(stream))
-	elif channel == 5:
-	    self.logger.debug(json.loads(data))
-	else:
-	    self.logger.warn("Error Unknown Channel %d" % ( channel))
-	self.send( 0, '')
+	self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	self.socket.connect((self.server, TCP_PORT))
+	self.model.server['run_client'] = True
+	TCPClientHandler(self.socket, (self.server, TCP_PORT) , self)
+
+    def disconnect(self):
+	self.model.server['run_client'] = False
+	self.socket.close()
+#	self.thread.join()
+
+class View(object):
+    logger = logging.getLogger('pipboy.Console')
+
+    ignore = [ '$.PlayerInfo.TimeHour',
+	'$.Map.Local.Player.X',
+	'$.Map.Local.Player.Y',
+	'$.Map.Local.Player.Rotation',
+	'$.Map.World.Player.X',
+	'$.Map.World.Player.Y',
+	'$.Map.World.Player.Rotation'
+ ]
+
+    def __init__(self, model):
+	self.model = model
+	model.register('update',self.listen_update)
+	model.register('command',self.listen_command)
+
+    def listen_update(self, items):
+	for item in items:
+	    path = self.model.get_path(item)
+	    ig = False
+	    for i in self.ignore:
+		if i.lower() == path.lower():
+		    ig = True
+	    if not ig:
+		item = self.model.get_item(item)
+		print path, item
+
+    def listen_command(self, _type, args):
+	print _type, args
+
 
 class Console(cmd.Cmd):
     logger = logging.getLogger('pipboy.Console')
@@ -678,6 +719,7 @@ class Console(cmd.Cmd):
 	logging.basicConfig()
 	self.prompt = 'PipBoy: '
 	self.model = Model()
+	self.view = View(self.model)
 	readline.set_completer_delims(
 	    readline.get_completer_delims().translate( None, '$[]'))
 
@@ -709,7 +751,13 @@ class Console(cmd.Cmd):
 	return [ server['IpAddr'] for server in self.__discover if server['IpAddr'].startswith(text) ]
 
     def do_connect(self, line):
+	self.client = TCPClient()
+	self.client.connect(line, self.model)
 	print "Connect - %s" % line
+
+    def do_disconnect(self, line):
+	self.client.disconnect()
+	print "Disconnect - %s" % line
 
     def do_autoconnect(self, line):
 	if not self.__discover:
@@ -785,6 +833,10 @@ class Console(cmd.Cmd):
 	with open(line, 'wb') as stream:
 	    TCPFormat.dump(self.model.dump(0, True), stream)
 
+    def do_savejson( self, line):
+	with open(line, 'wb') as stream:
+	    json.dump(BuiltinFormat.dump_model(self.model), stream, indent=4, sort_keys=True)
+
     def do_loadapp( self, line):
 	with open(line, 'rb') as stream:
 	    try:
@@ -792,6 +844,22 @@ class Console(cmd.Cmd):
 	    except Exception, e:
 		self.logger.error(e)
 		print "Not in AppFormat - %s" % line
+
+    def do_start(self, line):
+	self.tcp_server = ServerThread(self.model, TCPServer)
+	self.tcp_server.start()
+	self.udp_server = ServerThread(self.model, UDPServer)
+	self.udp_server.start()
+
+    def do_stop(self, line):
+	self.udp_server.stop()
+	self.udp_server = None
+	self.tcp_server.stop()
+	self.tcp_server = None
+
+    def do_threads(self, line):
+	for th in threading.enumerate():
+	    print th
 
 if __name__ == '__main__':
     Console().cmdloop()

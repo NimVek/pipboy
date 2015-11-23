@@ -165,7 +165,7 @@ The type is seen in range of 0 to 14, the args differ on type and the id increme
 
 ### Channel 6 (Command Response)
 
-Is a response channel for commands sends by app, only seen for command type `6`
+Is a response channel for commands sends by app, only seen for command type `9`
 
 ```JSON
 {"allowed":true,"id":3,"success":true}

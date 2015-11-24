@@ -176,3 +176,6 @@ Is a response channel for commands sends by app, only seen for command type `9`
 ```JSON
 {"allowed":true,"id":3,"success":true}
 ```
+```JSON
+{"allowed":false,"id":3,"message":"Du trägst zu viel und kannst daher nicht schnellreisen!","success":false}
+```

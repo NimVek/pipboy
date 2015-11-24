@@ -159,14 +159,14 @@ The type is seen in range of 0 to 14, the args differ on type and the id increme
 |  3  |  `[<ComponentFormId>, <$.Inventory.Version>]` | Toggle *Tag for search* on component specified by `<ComponentFormId>`  |
 |  4  |  `[<page>]` | Cycle through search mode on inventory page ( 0: Weapons, 1: Apparel, 2: Aid, 3: Misc, 4: Junk, 5: Mods, 6: Ammo )  |
 |  5  |  `[<QuestId>, ??, ??]` | Toggle marker for quest |
-|  6  |  `[ <x>, <y>, false ]` | Place custom marker at `<x>,<y>` |
+|  6  |  `[ <x>, <y>, <local> ]` | Place custom marker at `<x>,<y>`, if `<local>` then on local map else on global  |
 |  7  |  `[]`  | remove custom marker  |
 |  8  |   |   |
 |  9  |  `[<id>]` | Fast travel to location with index `<id>` in database  |
 |  10  |   |   |
 |  11  |   |   |
 |  12  |  `[<id>]`  |  Toggle radio with index `<id>` in database   |
-|  13  |  `[]`   |  Toggle receiving of local map update   |
+|  13  |  `[]`   |  Request update of local map   |
 |  14  |  `[]`   |  Refresh?? Command with no result   |
 
 ### Channel 6 (Command Response)

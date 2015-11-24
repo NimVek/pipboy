@@ -158,7 +158,7 @@ The type is seen in range of 0 to 14, the args differ on type and the id increme
 |  2  |  `[<HandleId>, <StackID>, <position>, <$.Inventory.Version>]` | Put item on favorite `<position>` counts from far left 0 to right 5, and north 6 to south 11  |
 |  3  |  `[<ComponentFormId>, <$.Inventory.Version>]` | Toggle *Tag for search* on component specified by `<ComponentFormId>`  |
 |  4  |  `[<page>]` | Cycle through search mode on inventory page ( 0: Weapons, 1: Apparel, 2: Aid, 3: Misc, 4: Junk, 5: Mods, 6: Ammo )  |
-|  5  |  `[<QuestId>, ??, ??]` | Toggle marker for quest |
+|  5  |  `[<formId>, <instance>, <type>]` | Toggle marker for quest (values found in $.Quests[x]) |
 |  6  |  `[ <x>, <y>, <local> ]` | Place custom marker at `<x>,<y>`, if `<local>` then on local map else on global  |
 |  7  |  `[]`  | remove custom marker  |
 |  8  |   |   |

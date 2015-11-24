@@ -33,6 +33,6 @@ Simply run `pipboy.py` it has a `cmd.Cmd` based interpreter.
 Please remark this is still in development, so no checking of consistency is done, whether on user input nor on network input.
 I've investigated only the Android-App <-> PC Game Connection, maybe it works with other combination, maybe not.
 Feel free to try and help me to make it better.
-I like to have some communication dumps of XBox Users.`Hard to describe what i need, discover is over UDP/5050.
+I like to have some communication dumps of XBox Users. Hard to describe what i need, discover is over UDP/5050.
 Maybe the XBOX has TCP/27000 open like PC/PS4.
 Maybe you can provide me some input simply run `tcpdump -s 0 -w dump host <ip of handheld>` or `tcpdump -s 0 -w dump port 27000 or port 28000`

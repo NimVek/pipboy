@@ -1,0 +1,3 @@
+[submodule "specs"]
+	path = specs
+	url = git@github.com:mattbaker/pipboyspec.git

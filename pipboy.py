@@ -174,8 +174,8 @@ class TCPFormat(object):
                 TCPFormat.__dump_dict(stream, _id, value)
 
 
-class AppFormat(object):
-    logger = logging.getLogger("pipboy.AppFormat")
+class PipboyFormat(object):
+    logger = logging.getLogger("pipboy.PipboyFormat")
 
     spelling = ['ActiveEffects', 'BodyFlags', 'Caps', 'ClearedStatus', 'Clip',
                 'CurrAP', 'CurrCell', 'CurrHP', 'CurrWeight', 'CurrWorldspace',
@@ -210,71 +210,82 @@ class AppFormat(object):
 
     @staticmethod
     def __load_string(stream):
-        (size, ) = struct.unpack('<I', stream.read(4))
-        return stream.read(size)
+        (length, ) = struct.unpack('<I', stream.read(4))
+        return stream.read(length)
 
     @staticmethod
-    def __load_native(stream):
+    def __load_key(stream):
+        key = PipboyFormat.__load_string(stream)
+        for x in PipboyFormat.spelling:
+            if x.lower() == key.lower():
+                key = x
+                break
+        return key
+
+    @staticmethod
+    def __load_primitive(stream):
         (typ, ) = struct.unpack('<B', stream.read(1))
-        if typ == 2:
+        if typ == 0:  # sint32_t
+            (value, ) = struct.unpack('<i', stream.read(4))
+        elif typ == 1:  # uint32_t
+            (value, ) = struct.unpack('<I', stream.read(4))
+        elif typ == 2:  # sint64_t
             (value, ) = struct.unpack('<q', stream.read(8))
-        elif typ == 4:
+        elif typ == 3:  # float32_t
+            (value, ) = struct.unpack('<f', stream.read(4))
+        elif typ == 4:  # float64_t
             (value, ) = struct.unpack('<d', stream.read(8))
-        elif typ == 5:
+        elif typ == 5:  # boolean
             (value, ) = struct.unpack('<B', stream.read(1))
             value = [False, True][value]
-        elif typ == 6:
-            value = AppFormat.__load_string(stream)
+        elif typ == 6:  # string
+            value = PipboyFormat.__load_string(stream)
         else:
-            AppFormat.logger.error("Unknown Native Typ %d" % typ)
+            PipboyFormat.logger.error("Unknown Primitive Typ %d" % typ)
         return value
 
     @staticmethod
-    def __load_list(stream):
+    def __load_array(stream):
         children = []
         (_count, ) = struct.unpack('<I', stream.read(4))
         value = [None] * _count
         for i in range(0, _count):
             (_index, ) = struct.unpack('<I', stream.read(4))
-            (_id, child) = AppFormat.__load_type(stream)
+            (_id, child) = PipboyFormat.__load_value(stream)
             value[_index] = _id
             children += child
         return (value, children)
 
     @staticmethod
-    def __load_dict(stream):
+    def __load_object(stream):
         children = []
         (_count, ) = struct.unpack('<I', stream.read(4))
         value = {}
         for i in range(0, _count):
-            name = AppFormat.__load_string(stream)
-            for x in AppFormat.spelling:
-                if x.lower() == name.lower():
-                    name = x
-                    break
-            (_id, child) = AppFormat.__load_type(stream)
-            value[name] = _id
+            key = PipboyFormat.__load_key(stream)
+            (_id, child) = PipboyFormat.__load_value(stream)
+            value[key] = _id
             children += child
         return (value, children)
 
     @staticmethod
-    def __load_type(stream):
+    def __load_value(stream):
         (typ, _id) = struct.unpack('<BI', stream.read(5))
         if typ == 0:
-            value = AppFormat.__load_native(stream)
+            value = PipboyFormat.__load_primitive(stream)
             children = []
         elif typ == 1:
-            (value, children) = AppFormat.__load_list(stream)
+            (value, children) = PipboyFormat.__load_array(stream)
         elif typ == 2:
-            (value, children) = AppFormat.__load_dict(stream)
+            (value, children) = PipboyFormat.__load_object(stream)
         else:
-            AppFormat.logger.error("Unknown Typ %d" % typ)
+            PipboyFormat.logger.error("Unknown Typ %d" % typ)
         children.append([_id, value])
         return (_id, children)
 
     @staticmethod
     def load(stream):
-        (_, result) = AppFormat.__load_type(stream)
+        (_, result) = PipboyFormat.__load_value(stream)
         return result
 
 
@@ -503,8 +514,9 @@ class UDPHandler(SocketServer.DatagramRequestHandler):
             json.dump({'IsBusy': False, 'MachineType': 'PC'}, self.wfile)
             self.logger.info('autodiscover from %s:%d' % self.client_address)
         else:
-            self.logger.debug('unrecognized request from (%s): %s' % (
-                ("%s:%d" % self.client_address), self.rfile.getvalue()))
+            self.logger.debug('unrecognized request from (%s): %s' %
+                              (("%s:%d" % self.client_address),
+                               self.rfile.getvalue()))
 
 
 class UDPServer(SocketServer.ThreadingUDPServer):
@@ -512,8 +524,8 @@ class UDPServer(SocketServer.ThreadingUDPServer):
 
     def __init__(self, model):
         self.model = model
-        SocketServer.ThreadingUDPServer.__init__(self,
-                                                 ('', UDP_PORT), UDPHandler)
+        SocketServer.ThreadingUDPServer.__init__(self, ('', UDP_PORT),
+                                                 UDPHandler)
 
 
 class ServerThread(object):
@@ -880,10 +892,10 @@ class Console(cmd.Cmd):
     def do_loadapp(self, line):
         with open(line, 'rb') as stream:
             try:
-                self.model.load(AppFormat.load(stream))
+                self.model.load(PipboyFormat.load(stream))
             except Exception, e:
                 self.logger.error(e)
-                print "Not in AppFormat - %s" % line
+                print "Not in PipboyFormat - %s" % line
 
     def do_start(self, line):
         self.tcp_server = ServerThread(self.model, TCPServer)

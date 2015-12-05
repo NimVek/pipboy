@@ -30,12 +30,12 @@ struct Packet {
 }
 ```
 
-### Channel 0 (Heartbeat)
+### Channel 0 (KeepAlive)
 
-Seems to be for keep alive only.
 The size of the packets are always *zero*, so no additional information are served.
+If not data is send a KeepAlive packet is send every second.
 
-### Channel 1
+### Channel 1 (ConnectionAccepted)
 
 On connect the first and only packet the Game sends contains some additional Info about the game.
 
@@ -43,12 +43,12 @@ On connect the first and only packet the Game sends contains some additional Inf
 {"lang": "de", "version": "1.1.30.0"}
 ```
 
-### Channel 2 (Busy)
+### Channel 2 (ConnectionRefused)
 
 Signals the game is busy and your are not allowed to logon.
 The size of the packets are always *zero*.
 
-### Channel 3 (Database Update)
+### Channel 3 (DataUpdate)
 
 This channel contains binary data the second packet of the server contains the whole database.
 Future packets do only updates to database.
@@ -122,7 +122,7 @@ will result in this database
 | 5 | "two" |
 | 6 | 3 |
 
-### Channel 4 (Local Map Update)
+### Channel 4 (LocalMapUpdate)
 
 The game sends binary imagedata wich is displayed if you choose local map on your app.
 Its seems to be rendered each time so maybe, we are able to detect movement? Lets see in future ;)
@@ -143,7 +143,7 @@ struct Map {
 }
 ```
 
-### Channel 5 (Command Request)
+### Channel 5 (Command)
 
 The app send commands to the game over this channel.
 The type is seen in range of 0 to 14, the args differ on type and the id increments with every command send.
@@ -151,27 +151,27 @@ The type is seen in range of 0 to 14, the args differ on type and the id increme
 {"type": 1, "args": [4207600675, 7, 494, [0, 1]], "id": 3}
 ```
 
-|  Type  |  Args  | Comment  |
-|---|---|---|
-|  0  |  `[ <HandleId>, 0, <$.Inventory.Version> ]`  | Use an instance of item specified by `<HandleId>`  |
-|  1  |  `[ <HandleId>, <count>, <$.Inventory.Version>, <StackID> ]`  | Drop `<count>` instances of item, `<StackID>` is the whole list under `StackID`  |
-|  2  |  `[<HandleId>, <StackID>, <position>, <$.Inventory.Version>]` | Put item on favorite `<position>` counts from far left 0 to right 5, and north 6 to south 11  |
-|  3  |  `[<ComponentFormId>, <$.Inventory.Version>]` | Toggle *Tag for search* on component specified by `<ComponentFormId>`  |
-|  4  |  `[<page>]` | Cycle through search mode on inventory page ( 0: Weapons, 1: Apparel, 2: Aid, 3: Misc, 4: Junk, 5: Mods, 6: Ammo )  |
-|  5  |  `[<formId>, <instance>, <type>]` | Toggle marker for quest (values found in $.Quests[x]) |
-|  6  |  `[ <x>, <y>, <local> ]` | Place custom marker at `<x>,<y>`, if `<local>` then on local map else on global  |
-|  7  |  `[]`  | remove custom marker  |
-|  8  |   |   |
-|  9  |  `[<id>]` | Fast travel to location with index `<id>` in database  |
-|  10  |   |   |
-|  11  |   |   |
-|  12  |  `[<id>]`  |  Toggle radio with index `<id>` in database   |
-|  13  |  `[]`   |  Request update of local map   |
-|  14  |  `[]`   |  Refresh?? Command with no result   |
+|  #  |  Description  |  Args  | Comment  |
+|---|---|---|---|
+|  0  |  UseItem  |  `[ <HandleId>, 0, <$.Inventory.Version> ]`  | Use an instance of item specified by `<HandleId>`  |
+|  1  |  DropItem  |  `[ <HandleId>, <count>, <$.Inventory.Version>, <StackID> ]`  | Drop `<count>` instances of item, `<StackID>` is the whole list under `StackID`  |
+|  2  |  SetFavorite  |  `[<HandleId>, <StackID>, <position>, <$.Inventory.Version>]` | Put item on favorite `<position>` counts from far left 0 to right 5, and north 6 to south 11  |
+|  3  |  ToggleComponentFavorite  |  `[<ComponentFormId>, <$.Inventory.Version>]` | Toggle *Tag for search* on component specified by `<ComponentFormId>`  |
+|  4  |  SortInventory  |  `[<page>]` | Cycle through search mode on inventory page ( 0: Weapons, 1: Apparel, 2: Aid, 3: Misc, 4: Junk, 5: Mods, 6: Ammo )  |
+|  5  |  ToggleQuestActive  |  `[<formId>, <instance>, <type>]` | Toggle marker for quest (values found in $.Quests[x]) |
+|  6  |  SetCustomMapMarker  |  `[ <x>, <y>, <local> ]` | Place custom marker at `<x>,<y>`, if `<local>` then on local map else on global  |
+|  7  |  RemoveCustomMapMarker  |  `[]`  | remove custom marker  |
+|  8  |  CheckFastTravel  |   |   |
+|  9  |  FastTravel  |  `[<id>]` | Fast travel to location with index `<id>` in database  |
+|  10  |  MoveLocalMap  |   |   |
+|  11  |  ZoomLocelMap  |   |   |
+|  12  |  ToggleRadioStation  |  `[<id>]`  |  Toggle radio with index `<id>` in database   |
+|  13  |  RequestLocalMapSnapshot  |  `[]`   |  Request update of local map   |
+|  14  |  ClearIdle  |  `[]`   |  Refresh?? Command with no result   |
 
-### Channel 6 (Command Response)
+### Channel 6 (CommandResult)
 
-Is a response channel for commands sends by app, only seen for command type `9`
+Is a response channel for commands sends by app, only seen for command type `8` and `9`
 
 ```JSON
 {"allowed":true,"id":3,"success":true}

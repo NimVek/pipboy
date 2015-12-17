@@ -501,13 +501,16 @@ class UDPClient(object):
 						data['IpAddr'] = ip_addr
 						data['IpPort'] = port
 						result.append(data)
-						if len(result) >= count:
+						if count is not None and len(result) >= count:
 							polling = False
 				except Exception as e:
 					UDPClient.logger.warn('Unrecognized answer from {ip}:{port}: {data}'.format(data=received, ip=ip_addr, port=port))
 			except socket.timeout as e:
 				polling = False
 		return result
+		# end while
+	# end def discover
+# end class
 
 
 class UDPHandler(SocketServer.DatagramRequestHandler):

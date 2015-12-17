@@ -524,8 +524,7 @@ class UDPServer(SocketServer.ThreadingUDPServer):
 
 	def __init__(self, model):
 		self.model = model
-		SocketServer.ThreadingUDPServer.__init__(self, ('', UDP_PORT),
-												 UDPHandler)
+		SocketServer.ThreadingUDPServer.__init__(self, ('', UDP_PORT), UDPHandler)
 
 
 class ServerThread(object):
@@ -551,10 +550,10 @@ class ServerThread(object):
 
 
 #class TCPHandler(object):
-class TCPHandler(object):
+class TCPHandler:
 	logger = logging.getLogger('pipboy.TCPHandler')
 
-	def ___init__(self, request, client_address, base_server):
+	def _old__init__(self, request, client_address, base_server):
 		self.request = request
 		self.client_address = client_address
 		self.base_server = base_server
@@ -621,8 +620,8 @@ class TCPHandler(object):
 				(channel, data) = self.receive()
 			except Disconnected:
 				self.logger.warn("Disconnected. Turned off {}.".format(self.switch))
-				#self.stop()
 				self.model.server[self.switch] = False
+				self.finish()
 				break
 			if channel in self.__handler:
 				self.__handler[channel](self, data)

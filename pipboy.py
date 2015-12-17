@@ -672,6 +672,7 @@ class TCPServerHandler(TCPHandler, SocketServer.StreamRequestHandler):
         self.logger.debug("setup")
         SocketServer.StreamRequestHandler.setup(self)
         self.model = self.server.model
+        assert isinstance(self.model, Model)
         self.send(1, json.dumps({'lang': 'en', 'version': '1.1.30.0'}))
         self.send_updates(self.model.dump(0, True))
         self.model.register('update', self.listen_update)
@@ -693,7 +694,7 @@ class TCPServer(SocketServer.ThreadingTCPServer):
         SocketServer.ThreadingTCPServer.server_activate(self)
 
     def shutdown(self):
-        self.model.server['run_server'] = True
+        self.model.server['run_server'] = False
         SocketServer.ThreadingTCPServer.shutdown(self)
 
 
@@ -731,11 +732,10 @@ class TCPClient(object):
     def connect(self, server, model):
         self.model = model
         self.server = server
-        self.thread = threading.Thread(target=self.run,
-                                       name=self.__class__.__name__)
+        self.thread = threading.Thread(target=self.run, name=self.__class__.__name__)
         self.thread.daemon = True
         self.thread.start()
-        self.logger.info('%s started' % self.__class__.__name__)
+        self.logger.info('{} started'.format(self.__class__.__name__))
 
     def run(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -746,7 +746,6 @@ class TCPClient(object):
     def disconnect(self):
         self.model.server['run_client'] = False
         self.socket.close()
-#	self.thread.join()
 
 
 class View(object):
@@ -764,7 +763,13 @@ class View(object):
         model.register('map_update', self.listen_map_update)
 
     def listen_update(self, items):
+        """
+        This listens and prints all new data, excluding those in the `ignore` list.
+        :param items: list of items
+        :return:
+        """
         for item in items:
+            assert isinstance(item, Model)
             path = self.model.get_path(item)
             ig = False
             for i in self.ignore:
@@ -772,13 +777,27 @@ class View(object):
                     ig = True
             if not ig:
                 item = self.model.get_item(item)
-                print path, item
+                self.print_update(path, item)
 
     def listen_command(self, _type, args):
-        print _type, args
+        """
+        This is called when a command is issued.
+        :param _type:
+        :param args:
+        :return:
+        """
+        print("{type} {args}".format(type=_type, args=args))
 
     def listen_map_update(self, data):
+        """
+        This function receives the data for the local map.
+        :param data: the data
+        """
         pass
+
+    # noinspection PyMethodMayBeStatic
+    def print_update(self, path, item):
+        print("{path} {value}".format(path, item))
 
 
 class Console(cmd.Cmd):

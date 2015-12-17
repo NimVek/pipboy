@@ -838,7 +838,7 @@ class Console(cmd.Cmd):
 
     def do_updates(self, line):
         """
-        Turns the output of database upadates on or off
+        `updates <1/0>` - If database updates should be printed.
         :param line:
         :return:
         """

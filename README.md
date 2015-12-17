@@ -20,7 +20,8 @@ Simply run `pipboy.py` it has a `cmd.Cmd` based interpreter.
 | `set <path> <value>` | sets the value  |
 | `load <file>` | loads a file in the format of Channel 3  |
 | `loadapp <file>` | loads a file in the format found in apk (DemoMode.bin)  |
-| `loglevel <level>` | [list of levels](https://docs.python.org/2/library/logging.html#logging-levels) |
+| `loglevel <level>` | Python logger levels, see [(list of levels)](https://docs.python.org/2/library/logging.html#logging-levels) |
+| `updates <1/0>` | If database updates should be printed. |
 | `save <file>` | saves database to file in the format of Channel 3  |
 | `savejson <file>` | saves database to JSON-file |
 | `start` | starts server so app can connect |

@@ -503,7 +503,7 @@ class UDPClient(object):
 				except Exception as e:
 					UDPClient.logger.warn('unrecognized answer from (%s): %s' %
 									  (("%s:%d" % fromaddr), received))
-			except socket.timeout, e:
+			except socket.timeout as e:
 				polling = False
 		return result
 
@@ -680,8 +680,8 @@ class TCPServerHandler(TCPHandler, SocketServer.StreamRequestHandler):
 class TCPServer(SocketServer.ThreadingTCPServer):
 	def __init__(self, model):
 		self.model = model
-		SocketServer.ThreadingTCPServer.__init__(self, ('', TCP_PORT),
-												 TCPServerHandler)
+		SocketServer.ThreadingTCPServer.__init__(self, ('', TCP_PORT), TCPServerHandler)
+
 	def server_activate(self):
 		self.model.server['run_server'] = True
 		SocketServer.ThreadingTCPServer.server_activate(self)

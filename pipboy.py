@@ -493,16 +493,18 @@ class UDPClient(object):
 		while polling:
 			try:
 				received, fromaddr = udp_socket.recvfrom(1024)
+				ip_addr, port = fromaddr
 				try:
 					data = json.loads(received)
+					UDPClient.logger.debug('Discovered {machine_type} at {ip}:{port} ({is_busy})'.format(machine_type=data.get('MachineType'), ip=ip_addr, port=port, is_busy="busy" if data.get('IsBusy') else "free"))
 					if busy_allowed or data.get('IsBusy') == False:
-						data['IpAddr'] = fromaddr[0]
 						result.append(data)
 						if len(result) >= count:
+						data['IpAddr'] = ip_addr
+						data['IpPort'] = port
 							polling = False
 				except Exception as e:
-					UDPClient.logger.warn('unrecognized answer from (%s): %s' %
-									  (("%s:%d" % fromaddr), received))
+					UDPClient.logger.warn('Unrecognized answer from {ip}:{port}: {data}'.format(data=received, ip=ip_addr, port=port))
 			except socket.timeout as e:
 				polling = False
 		return result

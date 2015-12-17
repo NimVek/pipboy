@@ -498,10 +498,10 @@ class UDPClient(object):
 					data = json.loads(received)
 					UDPClient.logger.debug('Discovered {machine_type} at {ip}:{port} ({is_busy})'.format(machine_type=data.get('MachineType'), ip=ip_addr, port=port, is_busy="busy" if data.get('IsBusy') else "free"))
 					if busy_allowed or data.get('IsBusy') == False:
-						result.append(data)
-						if len(result) >= count:
 						data['IpAddr'] = ip_addr
 						data['IpPort'] = port
+						result.append(data)
+						if len(result) >= count:
 							polling = False
 				except Exception as e:
 					UDPClient.logger.warn('Unrecognized answer from {ip}:{port}: {data}'.format(data=received, ip=ip_addr, port=port))

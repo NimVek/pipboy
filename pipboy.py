@@ -514,19 +514,22 @@ class UDPClient(object):
 
 class UDPHandler(SocketServer.DatagramRequestHandler):
 	logger = logging.getLogger('pipboy.UDPHandler')
+	DISCOVER_MESSAGE = {'IsBusy': False, 'MachineType': 'PC'}
 
 	def handle(self):
+		ip_addr, port = self.client_address
 		try:
 			data = json.load(self.rfile)
 		except Exception, e:
 			self.logger.error(str(e))
+			return
 		if data and data.get('cmd') == 'autodiscover':
-			json.dump({'IsBusy': False, 'MachineType': 'PC'}, self.wfile)
-			self.logger.info('autodiscover from %s:%d' % self.client_address)
+			json.dump(self.DISCOVER_MESSAGE, self.wfile)
+			self.logger.info('Autodiscover from {ip}:{port}'.format(ip=ip_addr, port=port))
 		else:
-			self.logger.debug('unrecognized request from (%s): %s' %
-							  (("%s:%d" % self.client_address),
-							   self.rfile.getvalue()))
+			self.logger.warn('Unrecognized answer from {ip}:{port}: {data}'.format(data=self.rfile.getvalue(), ip=ip_addr, port=port))
+	# end def handle
+# end class
 
 
 class UDPServer(SocketServer.ThreadingUDPServer):

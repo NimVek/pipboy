@@ -533,25 +533,32 @@ class ServerThread(object):
 
 	def __init__(self, model, ServerClass):
 		self.model = model
-		self.ServerClass = ServerClass
+		self.server_class = ServerClass
 
 	def start(self):
-		self.server = self.ServerClass(self.model)
+		self.server = self.server_class(self.model)
 		self.thread = threading.Thread(target=self.server.serve_forever,
-									   name=self.ServerClass.__name__)
+									   name=self.server_class.__name__)
 		self.thread.daemon = True
 		self.thread.start()
-		self.logger.info('%s started' % self.ServerClass.__name__)
+		self.logger.info('%s started' % self.server_class.__name__)
 
 	def stop(self):
 		self.server.shutdown()
 		self.server.server_close()
 		self.thread.join()
-		self.logger.info('%s stopped' % self.ServerClass.__name__)
+		self.logger.info('%s stopped' % self.server_class.__name__)
 
 
-class TCPHandler:
+#class TCPHandler(object):
+class TCPHandler(object):
 	logger = logging.getLogger('pipboy.TCPHandler')
+
+	def ___init__(self, request, client_address, base_server):
+		self.request = request
+		self.client_address = client_address
+		self.base_server = base_server
+		self.logger.debug("Created TCPHandler: {r}, {adr}, {server}".format(r=request, adr=client_address, server=base_server))
 
 	def receive(self):
 		self.logger.debug("receive")
@@ -614,6 +621,7 @@ class TCPHandler:
 				(channel, data) = self.receive()
 			except Disconnected:
 				self.logger.warn("Disconnected. Turned off {}.".format(self.switch))
+				#self.stop()
 				self.model.server[self.switch] = False
 				break
 			if channel in self.__handler:
@@ -669,7 +677,6 @@ class TCPServer(SocketServer.ThreadingTCPServer):
 		self.model = model
 		SocketServer.ThreadingTCPServer.__init__(self, ('', TCP_PORT),
 												 TCPServerHandler)
-
 	def server_activate(self):
 		self.model.server['run_server'] = True
 		SocketServer.ThreadingTCPServer.server_activate(self)

@@ -813,16 +813,19 @@ class Console(cmd.Cmd):
 		"""
 		`discover` - does the udp discover and shows the responding games
 		"""
-		self.__discover = UDPClient.discover()
+		self.__discover = UDPClient.discover()  # caches for completion
 		for server in self.__discover:
 			print server
 
 	def complete_connect(self, text, line, begidx, endidx):
 		if not self.__discover:
 			self.__discover = UDPClient.discover(timeout=2, busy_allowed=False)
-		return [server['IpAddr']
-				for server in self.__discover
-				if server['IpAddr'].startswith(text)]
+		return [
+			server['IpAddr']
+				for server in self.__discover if
+					server['IsBusy'] == False and server['IpAddr'].startswith(text)
+					# checking 'IsBusy' again because cached version might include busy ones.
+			]
 
 	def do_connect(self, line):
 		"""

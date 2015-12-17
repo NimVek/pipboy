@@ -856,13 +856,16 @@ class Console(cmd.Cmd):
         """
         `discover` - does the udp discover and shows the responding games
         """
-        self.__discover = UDPClient.discover()  # caches for completion
-        for server in self.__discover:
-            print server
+        discover = []  # caches for completion
+        for server in UDPClient.discover():
+            print("{ip} ({type}, {is_busy})".format(ip=server["IpAddr"], type=server['MachineType'],
+                                                    is_busy="busy" if server['IsBusy'] else "free"))
+            discover.append(server)
+        self.__discover = discover
 
     def complete_connect(self, text, line, begidx, endidx):
         if not self.__discover:
-            self.__discover = UDPClient.discover(timeout=2, busy_allowed=False)
+            self.__discover = list(UDPClient.discover(timeout=2))
         return [
             server['IpAddr']
                 for server in self.__discover if
@@ -874,9 +877,21 @@ class Console(cmd.Cmd):
         """
         `connect <gameip>` - connects to the specfied game
         """
-        self.client = TCPClient()
-        self.client.connect(line, self.model)
-        print "Connect - %s" % line
+        if len(line.strip()) == 0:
+            print("Please provide an IP")
+            return
+        print("Connecting to {line}".format(line=line))
+        if not hasattr(self, "client") or not self.client:
+            self.client = TCPClient()
+        else:
+            self.logger.warn("Already Connected. Disconnecting previous session.")
+            self.client.disconnect()
+        try:
+            self.client.connect(line, self.model)
+        except Exception as e:
+            self.logger.error("Could not connect: {err}".format(err=str(e)))
+        else:
+            print("Connected.")
 
     def do_disconnect(self, line):
         """
@@ -892,7 +907,6 @@ class Console(cmd.Cmd):
         """
         Connects to the first available game.
         """
-        if not self.__discover:
             self.__discover = UDPClient.discover(timeout=2,
                                                  count=1,
                                                  busy_allowed=False)

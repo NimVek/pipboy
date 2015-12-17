@@ -546,13 +546,13 @@ class ServerThread(object):
 									   name=self.server_class.__name__)
 		self.thread.daemon = True
 		self.thread.start()
-		self.logger.info('%s started' % self.server_class.__name__)
+		self.logger.debug('%s started' % self.server_class.__name__)
 
 	def stop(self):
 		self.server.shutdown()
 		self.server.server_close()
 		self.thread.join()
-		self.logger.info('%s stopped' % self.server_class.__name__)
+		self.logger.debug('%s stopped' % self.server_class.__name__)
 
 
 #class TCPHandler(object):
@@ -984,13 +984,13 @@ class Console(cmd.Cmd):
 			self.udp_server = None
 			self.logger.debug("Stopped UDP.")
 		else:
-			self.logger.debug("UDP already stopped.")
+			self.logger.info("UDP already stopped.")
 		if hasattr(self, "tcp_server") and self.tcp_server:
 			self.tcp_server.stop()
 			self.tcp_server = None
 			self.logger.debug("Stopped TCP.")
 		else:
-			self.logger.debug("TCP already stopped.")
+			self.logger.info("TCP already stopped.")
 
 
 	def do_threads(self, line):

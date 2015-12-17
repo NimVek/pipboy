@@ -396,7 +396,13 @@ class Model(object):
 		self.listener[typ].append(function)
 
 	def unregister(self, typ, function):
-		self.listener[typ].remove(function)
+		if typ not in self.listener:
+			self.logger.warn("Could not remove function {func_name} from listener {listener}, listener did not exist.".format(func_name=function.func_name, listener=typ))
+			return
+		try:
+			self.listener[typ].remove(function)
+		except ValueError:
+			self.logger.warn("Could not remove function {func_name} from listener {listener}, function did not exist.".format(func_name=function.func_name, listener=typ))
 
 	def get_item(self, _id):
 		return self.__items.get(_id)

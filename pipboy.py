@@ -905,12 +905,17 @@ class Console(cmd.Cmd):
 
     def do_autoconnect(self, line):
         """
-        Connects to the first available game.
+        `autoconnect` - Connects to the first available game.
         """
-            self.__discover = UDPClient.discover(timeout=2,
-                                                 count=1,
-                                                 busy_allowed=False)
-        print "Connect - %s" % line
+        discover = self.__discover
+        if not discover:
+            discover = list(UDPClient.discover(timeout=2, count=1, busy_allowed=False))
+        if not hasattr(self, "client") or not self.client:
+            self.client = TCPClient()
+            self.logger.debug("created client")
+        ip = discover[0]["IpAddr"]
+        self.client.connect(ip, self.model)
+        print("Connect - {ip}".format(ip=ip))
 
     def __complete_path(self, text):
         if not text:

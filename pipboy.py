@@ -500,8 +500,8 @@ class UDPClient(object):
 						result.append(data)
 						if len(result) >= count:
 							polling = False
-				except Exception, e:
-					self.logger.debug('unrecognized answer from (%s): %s' %
+				except Exception as e:
+					UDPClient.logger.warn('unrecognized answer from (%s): %s' %
 									  (("%s:%d" % fromaddr), received))
 			except socket.timeout, e:
 				polling = False

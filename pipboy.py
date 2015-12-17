@@ -585,7 +585,7 @@ class TCPHandler:
         return (channel, data)
 
     def send(self, channel, data):
-        self.logger.debug("send")
+        self.logger.debug("send {channel}: {data}".format(channel=channel, data=data))
         header = struct.pack('<IB', len(data), channel)
         self.wfile.write(header)
         self.wfile.write(data)
@@ -758,6 +758,7 @@ class View(object):
 
     def __init__(self, model):
         self.model = model
+        self.should_spam = True
         model.register('update', self.listen_update)
         model.register('command', self.listen_command)
         model.register('map_update', self.listen_map_update)
@@ -765,11 +766,12 @@ class View(object):
     def listen_update(self, items):
         """
         This listens and prints all new data, excluding those in the `ignore` list.
-        :param items: list of items
+        :param items: list of items (ints)
         :return:
         """
         for item in items:
-            assert isinstance(item, Model)
+            if not isinstance(item, int):
+                self.logger.debug("strange model.")
             path = self.model.get_path(item)
             ig = False
             for i in self.ignore:
@@ -797,7 +799,8 @@ class View(object):
 
     # noinspection PyMethodMayBeStatic
     def print_update(self, path, item):
-        print("{path} {value}".format(path, item))
+        if self.should_spam:
+            print("{path} {value}".format(path=path, value=item))
 
 
 class Console(cmd.Cmd):
@@ -809,8 +812,9 @@ class Console(cmd.Cmd):
         self.prompt = 'PipBoy: '
         self.model = Model()
         self.view = View(self.model)
-        readline.set_completer_delims(readline.get_completer_delims(
-        ).translate(None, '$[]'))
+        self.client = None
+        readline.set_completer_delims(readline.get_completer_delims().translate(None, '$[]'))
+
 
     def emptyline(self):
         pass
@@ -832,7 +836,21 @@ class Console(cmd.Cmd):
         except Exception, e:
             self.logger.error(e)
 
+    def do_updates(self, line):
+        """
+        Turns the output of database upadates on or off
+        :param line:
+        :return:
+        """
+        if line.strip().lower() in ["1","y", "yes","true"]:
+            self.view.should_spam = True
+            print("Turned output on.")
+        else:
+            self.view.should_spam = False
+            print("Turned output off.")
+
     __discover = None
+    # List of Fallout apps. Can be busy.
 
     def do_discover(self, line):
         """

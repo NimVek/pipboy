@@ -839,7 +839,10 @@ class Console(cmd.Cmd):
 		"""
 		`disconnect` - disconnects from game
 		"""
-		self.client.disconnect()
+		if hasattr(self, "client") and self.client:
+			self.client.disconnect()
+		else:
+			self.logger.warn("Not connected.")
 		print("Disconnect - %s" % line)
 
 	def do_autoconnect(self, line):

@@ -774,7 +774,7 @@ class Console(cmd.Cmd):
 
 	def __init__(self):
 		cmd.Cmd.__init__(self)
-		logging.basicConfig()
+		logging.basicConfig(level=logging.INFO)
 		self.prompt = 'PipBoy: '
 		self.model = Model()
 		self.view = View(self.model)

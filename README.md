@@ -14,11 +14,14 @@ Simply run `pipboy.py` it has a `cmd.Cmd` based interpreter.
 |---|---|
 | `discover` | does the udp discover and shows the responding games |
 | `connect <gameip>` | connects to the specfied game |
+| `autoconnect` | connects to the first available game |
 | `disconnect` | disconnects from game |
 | `get <path>` | gets the value at path from the database (e.g. get $.PlayerInfo.PlayerName) (complete with Tab)  |
 | `set <path> <value>` | sets the value  |
 | `load <file>` | loads a file in the format of Channel 3  |
 | `loadapp <file>` | loads a file in the format found in apk (DemoMode.bin)  |
+| `loglevel <level>` | Python logger levels, see [(list of levels)](https://docs.python.org/2/library/logging.html#logging-levels) |
+| `updates <1/0>` | If database updates should be printed. |
 | `save <file>` | saves database to file in the format of Channel 3  |
 | `savejson <file>` | saves database to JSON-file |
 | `start` | starts server so app can connect |

@@ -396,7 +396,13 @@ class Model(object):
         self.listener[typ].append(function)
 
     def unregister(self, typ, function):
-        self.listener[typ].remove(function)
+        if typ not in self.listener:
+            self.logger.warn("Could not remove function {func_name} from listener {listener}, listener did not exist.".format(func_name=function.func_name, listener=typ))
+            return
+        try:
+            self.listener[typ].remove(function)
+        except ValueError:
+            self.logger.warn("Could not remove function {func_name} from listener {listener}, function did not exist.".format(func_name=function.func_name, listener=typ))
 
     def get_item(self, _id):
         return self.__items.get(_id)
@@ -487,36 +493,43 @@ class UDPClient(object):
         while polling:
             try:
                 received, fromaddr = udp_socket.recvfrom(1024)
+                ip_addr, port = fromaddr
                 try:
                     data = json.loads(received)
+                    UDPClient.logger.debug('Discovered {machine_type} at {ip}:{port} ({is_busy})'.format(machine_type=data.get('MachineType'), ip=ip_addr, port=port, is_busy="busy" if data.get('IsBusy') else "free"))
                     if busy_allowed or data.get('IsBusy') == False:
-                        data['IpAddr'] = fromaddr[0]
-                        result.append(data)
-                        if len(result) >= count:
+                        data['IpAddr'] = ip_addr
+                        data['IpPort'] = port
+                        yield (data)  # result.append(data)
+                        if count is not None and len(result) >= count:
                             polling = False
-                except Exception, e:
-                    self.logger.debug('unrecognized answer from (%s): %s' %
-                                      (("%s:%d" % fromaddr), received))
-            except socket.timeout, e:
+                except Exception as e:
+                    UDPClient.logger.warn('Unrecognized answer from {ip}:{port}: {data}'.format(data=received, ip=ip_addr, port=port))
+            except socket.timeout as e:
                 polling = False
-        return result
+        # end while
+    # end def discover
+# end class
 
 
 class UDPHandler(SocketServer.DatagramRequestHandler):
     logger = logging.getLogger('pipboy.UDPHandler')
+    DISCOVER_MESSAGE = {'IsBusy': False, 'MachineType': 'PC'}
 
     def handle(self):
+        ip_addr, port = self.client_address
         try:
             data = json.load(self.rfile)
         except Exception, e:
             self.logger.error(str(e))
+            return
         if data and data.get('cmd') == 'autodiscover':
-            json.dump({'IsBusy': False, 'MachineType': 'PC'}, self.wfile)
-            self.logger.info('autodiscover from %s:%d' % self.client_address)
+            json.dump(self.DISCOVER_MESSAGE, self.wfile)
+            self.logger.info('Autodiscover from {ip}:{port}'.format(ip=ip_addr, port=port))
         else:
-            self.logger.debug('unrecognized request from (%s): %s' %
-                              (("%s:%d" % self.client_address),
-                               self.rfile.getvalue()))
+            self.logger.warn('Unrecognized answer from {ip}:{port}: {data}'.format(data=self.rfile.getvalue(), ip=ip_addr, port=port))
+    # end def handle
+# end class
 
 
 class UDPServer(SocketServer.ThreadingUDPServer):
@@ -524,8 +537,7 @@ class UDPServer(SocketServer.ThreadingUDPServer):
 
     def __init__(self, model):
         self.model = model
-        SocketServer.ThreadingUDPServer.__init__(self, ('', UDP_PORT),
-                                                 UDPHandler)
+        SocketServer.ThreadingUDPServer.__init__(self, ('', UDP_PORT), UDPHandler)
 
 
 class ServerThread(object):
@@ -533,35 +545,47 @@ class ServerThread(object):
 
     def __init__(self, model, ServerClass):
         self.model = model
-        self.ServerClass = ServerClass
+        self.server_class = ServerClass
 
     def start(self):
-        self.server = self.ServerClass(self.model)
+        self.server = self.server_class(self.model)
         self.thread = threading.Thread(target=self.server.serve_forever,
-                                       name=self.ServerClass.__name__)
+                                       name=self.server_class.__name__)
         self.thread.daemon = True
         self.thread.start()
-        self.logger.info('%s started' % self.ServerClass.__name__)
+        self.logger.debug('%s started' % self.server_class.__name__)
 
     def stop(self):
         self.server.shutdown()
         self.server.server_close()
         self.thread.join()
-        self.logger.info('%s stopped' % self.ServerClass.__name__)
+        self.logger.debug('%s stopped' % self.server_class.__name__)
 
 
 class TCPHandler:
     logger = logging.getLogger('pipboy.TCPHandler')
 
+    def _old__init__(self, request, client_address, base_server):
+        self.request = request
+        self.client_address = client_address
+        self.base_server = base_server
+        self.logger.debug("Created TCPHandler: {r}, {adr}, {server}".format(r=request, adr=client_address, server=base_server))
+
     def receive(self):
         self.logger.debug("receive")
         header = self.rfile.read(5)
-        size, channel = struct.unpack('<IB', header)
+        if len(header) == 0:
+            raise Disconnected("receive")
+        try:
+            size, channel = struct.unpack('<IB', header)
+        except Exception as e:
+            self.logger.exception("header: '{}'".format(header))
+            raise
         data = self.rfile.read(size)
         return (channel, data)
 
     def send(self, channel, data):
-        self.logger.debug("send")
+        self.logger.debug("send {channel}: {data}".format(channel=channel, data=data))
         header = struct.pack('<IB', len(data), channel)
         self.wfile.write(header)
         self.wfile.write(data)
@@ -604,7 +628,13 @@ class TCPHandler:
     def handle(self):
         self.logger.debug("handle")
         while self.model.server[self.switch]:
-            (channel, data) = self.receive()
+            try:
+                (channel, data) = self.receive()
+            except Disconnected:
+                self.logger.warn("Disconnected. Turned off {}.".format(self.switch))
+                self.model.server[self.switch] = False
+                self.finish()
+                break
             if channel in self.__handler:
                 self.__handler[channel](self, data)
             else:
@@ -642,6 +672,7 @@ class TCPServerHandler(TCPHandler, SocketServer.StreamRequestHandler):
         self.logger.debug("setup")
         SocketServer.StreamRequestHandler.setup(self)
         self.model = self.server.model
+        assert isinstance(self.model, Model)
         self.send(1, json.dumps({'lang': 'en', 'version': '1.1.30.0'}))
         self.send_updates(self.model.dump(0, True))
         self.model.register('update', self.listen_update)
@@ -656,15 +687,14 @@ class TCPServerHandler(TCPHandler, SocketServer.StreamRequestHandler):
 class TCPServer(SocketServer.ThreadingTCPServer):
     def __init__(self, model):
         self.model = model
-        SocketServer.ThreadingTCPServer.__init__(self, ('', TCP_PORT),
-                                                 TCPServerHandler)
+        SocketServer.ThreadingTCPServer.__init__(self, ('', TCP_PORT), TCPServerHandler)
 
     def server_activate(self):
         self.model.server['run_server'] = True
         SocketServer.ThreadingTCPServer.server_activate(self)
 
     def shutdown(self):
-        self.model.server['run_server'] = True
+        self.model.server['run_server'] = False
         SocketServer.ThreadingTCPServer.shutdown(self)
 
 
@@ -702,11 +732,10 @@ class TCPClient(object):
     def connect(self, server, model):
         self.model = model
         self.server = server
-        self.thread = threading.Thread(target=self.run,
-                                       name=self.__class__.__name__)
+        self.thread = threading.Thread(target=self.run, name=self.__class__.__name__)
         self.thread.daemon = True
         self.thread.start()
-        self.logger.info('%s started' % self.__class__.__name__)
+        self.logger.info('{} started'.format(self.__class__.__name__))
 
     def run(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -717,7 +746,6 @@ class TCPClient(object):
     def disconnect(self):
         self.model.server['run_client'] = False
         self.socket.close()
-#	self.thread.join()
 
 
 class View(object):
@@ -730,12 +758,20 @@ class View(object):
 
     def __init__(self, model):
         self.model = model
+        self.should_spam = True
         model.register('update', self.listen_update)
         model.register('command', self.listen_command)
         model.register('map_update', self.listen_map_update)
 
     def listen_update(self, items):
+        """
+        This listens and prints all new data, excluding those in the `ignore` list.
+        :param items: list of items (ints)
+        :return:
+        """
         for item in items:
+            if not isinstance(item, int):
+                self.logger.debug("strange model.")
             path = self.model.get_path(item)
             ig = False
             for i in self.ignore:
@@ -743,13 +779,28 @@ class View(object):
                     ig = True
             if not ig:
                 item = self.model.get_item(item)
-                print path, item
+                self.print_update(path, item)
 
     def listen_command(self, _type, args):
-        print _type, args
+        """
+        This is called when a command is issued.
+        :param _type:
+        :param args:
+        :return:
+        """
+        print("{type} {args}".format(type=_type, args=args))
 
     def listen_map_update(self, data):
+        """
+        This function receives the data for the local map.
+        :param data: the data
+        """
         pass
+
+    # noinspection PyMethodMayBeStatic
+    def print_update(self, path, item):
+        if self.should_spam:
+            print("{path} {value}".format(path=path, value=item))
 
 
 class Console(cmd.Cmd):
@@ -757,12 +808,13 @@ class Console(cmd.Cmd):
 
     def __init__(self):
         cmd.Cmd.__init__(self)
-        logging.basicConfig()
+        logging.basicConfig(level=logging.INFO)
         self.prompt = 'PipBoy: '
         self.model = Model()
         self.view = View(self.model)
-        readline.set_completer_delims(readline.get_completer_delims(
-        ).translate(None, '$[]'))
+        self.client = None
+        readline.set_completer_delims(readline.get_completer_delims().translate(None, '$[]'))
+
 
     def emptyline(self):
         pass
@@ -776,40 +828,94 @@ class Console(cmd.Cmd):
                 if type(i) == str and i.startswith(text)]
 
     def do_loglevel(self, line):
+        """
+        `loglevel <level>` - sets a logging level. Choose 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'.
+        """
         try:
             logging.getLogger().setLevel(line)
         except Exception, e:
             self.logger.error(e)
 
+    def do_updates(self, line):
+        """
+        `updates <1/0>` - If database updates should be printed.
+        :param line:
+        :return:
+        """
+        if line.strip().lower() in ["1","y", "yes","true"]:
+            self.view.should_spam = True
+            print("Turned output on.")
+        else:
+            self.view.should_spam = False
+            print("Turned output off.")
+
     __discover = None
+    # List of Fallout apps. Can be busy.
 
     def do_discover(self, line):
-        self.__discover = UDPClient.discover()
-        for server in self.__discover:
-            print server
+        """
+        `discover` - does the udp discover and shows the responding games
+        """
+        discover = []  # caches for completion
+        for server in UDPClient.discover():
+            print("{ip} ({type}, {is_busy})".format(ip=server["IpAddr"], type=server['MachineType'],
+                                                    is_busy="busy" if server['IsBusy'] else "free"))
+            discover.append(server)
+        self.__discover = discover
 
     def complete_connect(self, text, line, begidx, endidx):
         if not self.__discover:
-            self.__discover = UDPClient.discover(timeout=2, busy_allowed=False)
-        return [server['IpAddr']
-                for server in self.__discover
-                if server['IpAddr'].startswith(text)]
+            self.__discover = list(UDPClient.discover(timeout=2))
+        return [
+            server['IpAddr']
+                for server in self.__discover if
+                    server['IsBusy'] == False and server['IpAddr'].startswith(text)
+                    # checking 'IsBusy' again because cached version might include busy ones.
+            ]
 
     def do_connect(self, line):
-        self.client = TCPClient()
-        self.client.connect(line, self.model)
-        print "Connect - %s" % line
+        """
+        `connect <gameip>` - connects to the specfied game
+        """
+        if len(line.strip()) == 0:
+            print("Please provide an IP")
+            return
+        print("Connecting to {line}".format(line=line))
+        if not hasattr(self, "client") or not self.client:
+            self.client = TCPClient()
+        else:
+            self.logger.warn("Already Connected. Disconnecting previous session.")
+            self.client.disconnect()
+        try:
+            self.client.connect(line, self.model)
+        except Exception as e:
+            self.logger.error("Could not connect: {err}".format(err=str(e)))
+        else:
+            print("Connected.")
 
     def do_disconnect(self, line):
-        self.client.disconnect()
-        print "Disconnect - %s" % line
+        """
+        `disconnect` - disconnects from game
+        """
+        if hasattr(self, "client") and self.client:
+            self.client.disconnect()
+        else:
+            self.logger.warn("Not connected.")
+        print("Disconnect - %s" % line)
 
     def do_autoconnect(self, line):
-        if not self.__discover:
-            self.__discover = UDPClient.discover(timeout=2,
-                                                 count=1,
-                                                 busy_allowed=False)
-        print "Connect - %s" % line
+        """
+        `autoconnect` - Connects to the first available game.
+        """
+        discover = self.__discover
+        if not discover:
+            discover = list(UDPClient.discover(timeout=2, count=1, busy_allowed=False))
+        if not hasattr(self, "client") or not self.client:
+            self.client = TCPClient()
+            self.logger.debug("created client")
+        ip = discover[0]["IpAddr"]
+        self.client.connect(ip, self.model)
+        print("Connect - {ip}".format(ip=ip))
 
     def __complete_path(self, text):
         if not text:
@@ -842,6 +948,9 @@ class Console(cmd.Cmd):
         return self.__complete_path(text)
 
     def do_get(self, line):
+        """
+        `get <path>` - gets the value at path from the database (e.g. get $.PlayerInfo.PlayerName) (complete with Tab)
+        """
         for path in re.split('\s+', line.strip()):
             _id = self.model.get_id(path)
             if type(_id) == int:
@@ -853,6 +962,9 @@ class Console(cmd.Cmd):
         return self.__complete_path(text)
 
     def do_set(self, line):
+        """
+        `set <path> <value>` - sets the value at path from the database (e.g. get $.PlayerInfo.PlayerName) (complete with Tab)
+        """
         args = line.split(' ', 1)
         _id = self.model.get_id(args[0])
         if type(_id) == int:
@@ -870,18 +982,27 @@ class Console(cmd.Cmd):
             print "Path not found"
 
     def do_load(self, line):
+        """
+        `load <file>` loads a file in the format of Channel 3
+        """
         with open(line, 'rb') as stream:
             try:
                 self.model.load(TCPFormat.load(stream))
             except Exception, e:
                 self.logger.error(e)
-                print "Not in TCPFormat - %s" % line
+                print("Not in TCPFormat - {}".format(line))
 
     def do_save(self, line):
+        """
+        `save <file>` - saves database to file in the format of Channel 3
+        """
         with open(line, 'wb') as stream:
             TCPFormat.dump(self.model.dump(0, True), stream)
 
     def do_savejson(self, line):
+        """
+        `savejson <file>` - saves database to JSON-file
+        """
         with open(line, 'wb') as stream:
             json.dump(
                 BuiltinFormat.dump_model(self.model),
@@ -890,30 +1011,67 @@ class Console(cmd.Cmd):
                 sort_keys=True)
 
     def do_loadapp(self, line):
-        with open(line, 'rb') as stream:
-            try:
-                self.model.load(PipboyFormat.load(stream))
-            except Exception, e:
-                self.logger.error(e)
-                print "Not in PipboyFormat - %s" % line
+        """
+        `loadapp <file>` loads a file in the format found in apk (DemoMode.bin)
+        """
+        try:
+            with open(line, 'rb') as stream:
+                try:
+                    self.model.load(PipboyFormat.load(stream))
+                except Exception, e:
+                    self.logger.error(e)
+                    print("Not in PipboyFormat - {}".format(line))
+        except IOError as e:
+            self.logger.warn("{}".format(e))
+
 
     def do_start(self, line):
-        self.tcp_server = ServerThread(self.model, TCPServer)
-        self.tcp_server.start()
-        self.udp_server = ServerThread(self.model, UDPServer)
-        self.udp_server.start()
+        """
+        `start` - starts server so app can connect
+        """
+        if not hasattr(self, "tcp_server") or self.tcp_server is None:
+            self.tcp_server = ServerThread(self.model, TCPServer)
+            self.tcp_server.start()
+        else:
+            self.logger.warn("TCP server already running.")
+        if not hasattr(self, "udp_server") or self.udp_server is None:
+            self.udp_server = ServerThread(self.model, UDPServer)
+            self.udp_server.start()
+        else:
+            self.logger.warn("UDP server already running.")
+        #end if
+
 
     def do_stop(self, line):
-        self.udp_server.stop()
-        self.udp_server = None
-        self.tcp_server.stop()
-        self.tcp_server = None
+        """
+        `stop` - stops server
+        """
+        self.logger.debug("Stop requested.")
+        if hasattr(self, "udp_server") and self.udp_server:
+            self.udp_server.stop()
+            self.udp_server = None
+            self.logger.debug("Stopped UDP.")
+        else:
+            self.logger.info("UDP already stopped.")
+        if hasattr(self, "tcp_server") and self.tcp_server:
+            self.tcp_server.stop()
+            self.tcp_server = None
+            self.logger.debug("Stopped TCP.")
+        else:
+            self.logger.info("TCP already stopped.")
+
 
     def do_threads(self, line):
+        """
+        `threads` - show running threads
+        """
         for th in threading.enumerate():
             print th
 
     def do_rawcmd(self, line):
+        """
+        `rawcmd <type> <args>` - sends a command to game (testing only)
+        """
         args = line.split(' ', 1)
         try:
             command = int(args[0])
@@ -924,6 +1082,9 @@ class Console(cmd.Cmd):
         except Exception, e:
             self.logger.error(str(e))
 
+
+class Disconnected(Exception):
+    pass
 
 if __name__ == '__main__':
     Console().cmdloop()

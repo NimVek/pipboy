@@ -31,6 +31,8 @@ Simply run `pipboy.py` it has a `cmd.Cmd` based interpreter.
 
 ## Known Bugs
 
+Thanks to @luckydonald for finding and fixing ;)
+
 * does not check for closed connection
 
 Please remark this is still in development, so no checking of consistency is done, whether on user input nor on network input.

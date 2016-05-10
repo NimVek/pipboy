@@ -892,6 +892,14 @@ class Console(cmd.Cmd):
         self.do_stop(line)
         self.do_disconnect(line)
         return True
+    # end def do_exit
+
+    def do_EOF(self, line):
+        """
+        End of file on input is processed as the command `EOF`. This just calls the `exit` command.
+        """
+        return self.do_stop(line)
+    # end def do_EOF
 
     def complete_loglevel(self, text, line, begidx, endidx):
         return [i

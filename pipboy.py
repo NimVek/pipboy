@@ -885,7 +885,12 @@ class Console(cmd.Cmd):
     def emptyline(self):
         pass
 
-    def do_EOF(self, line):
+    def do_exit(self, line):
+        """
+        `exit` - Shut down and exit.
+        """
+        self.do_stop(line)
+        self.do_disconnect(line)
         return True
 
     def complete_loglevel(self, text, line, begidx, endidx):
@@ -965,9 +970,9 @@ class Console(cmd.Cmd):
         """
         if hasattr(self, "client") and self.client:
             self.client.disconnect()
+            print("Disconnected.")
         else:
             self.logger.warn("Not connected.")
-        print("Disconnect - %s" % line)
 
     def do_autoconnect(self, line):
         """

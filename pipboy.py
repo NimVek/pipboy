@@ -405,7 +405,30 @@ class Model(object):
             self.logger.warn("Could not remove function {func_name} from listener {listener}, function did not exist.".format(func_name=function.func_name, listener=typ))
 
     def get_item(self, _id):
+        """
+        returns the item by id.
+        :param _id: the id
+        :type  _id: int
+        :return:
+        """
         return self.__items.get(_id)
+
+    def has_item(self, _id):
+        """
+        returns if the id exists.
+        :param _id: the id
+        :type  _id: int
+        :return:
+        """
+        return self.__items.has_key(_id)
+
+    def get_keys(self):
+        """
+        returns all the existent ids.
+        :return: list of ids (or an iterator of, depending on what dict.keys() does.)
+        :rtype: list
+        """
+        return self.__items.keys()
 
     def get_path(self, _id):
         if _id == 0:
@@ -415,6 +438,18 @@ class Model(object):
             return self.get_path(parent) + name
 
     def __get_id(self, _id, path):
+        """
+        Walks down the database tree with the given path.
+
+        :param _id: Element where to start
+        :type  _id: int
+
+        :param path: Where to go
+        :type  path: str
+
+        :return: the id if found, else None
+        :rtype: int | None
+        """
         if not path:
             return _id
         match = re.match('^(\.([a-zA-Z0-9]+)|\[([0-9]+)\])(.*)$', path)
@@ -427,16 +462,36 @@ class Model(object):
                         return self.__get_id(v, groups[3])
             elif groups[2] and type(item) == list:
                 try:
-                    idx = int(groups[2])
+                    idx = int(groups[2])  # can raise ValueError
                     return self.__get_id(item[idx], groups[3])
-                except Exception, e:
+                except (ValueError, KeyError) as e:
                     self.logger.error(str(e))
         return None
 
     def get_id(self, path):
+        """
+        Get element id by Path to it. None if not found.
+
+        :param path: Where to go
+        :type  path: str
+
+        :return: the id if found, else None
+        :rtype: int | None
+        """
         if path.startswith('$'):
             return self.__get_id(0, path[1:])
+        elif path.startswith('#'):
+            try:
+                _id = int(path[1:])
+                if self.has_item(_id):
+                    self.get_item(_id)
+                    return _id
+            except ValueError as e:  # int(...): ValueError
+                self.logger.error(str(e))
+            # end try
+        # end if
         return None
+    # end def
 
     def update(self, items):
         changed = []
@@ -532,7 +587,7 @@ class UDPHandler(SocketServer.DatagramRequestHandler):
 # end class
 
 
-class UDPServer(SocketServer.ThreadingUDPServer):
+class   UDPServer(SocketServer.ThreadingUDPServer):
     logger = logging.getLogger('pipboy.UDPServer')
 
     def __init__(self, model):
@@ -587,8 +642,16 @@ class TCPHandler:
     def send(self, channel, data):
         self.logger.debug("send {channel}: {data}".format(channel=channel, data=data))
         header = struct.pack('<IB', len(data), channel)
-        self.wfile.write(header)
-        self.wfile.write(data)
+        try:
+            if not hasattr(self, "wfile") or not self.wfile:
+                raise AttributeError("self.wfile")
+            self.wfile.write(header)
+            self.wfile.write(data)
+        except (socket.error, AttributeError) as e:
+            self.logger.warn("Could not send. No wfile.")
+            self.finish()
+        # end try
+    # end def send
 
     def __handle_heartbeat(self, data):
         self.logger.debug("handle_heartbeat")
@@ -723,8 +786,11 @@ class TCPClientHandler(TCPHandler, SocketServer.StreamRequestHandler):
         self.logger.debug("finish")
         self.hb = False
         self.model.unregister('command', self.listen_command)
-        SocketServer.StreamRequestHandler.finish(self)
-
+        try:
+            SocketServer.StreamRequestHandler.finish(self)
+        except socket.error as e:
+            self.logger.debug("Fail in finish(): {error}".format(error=str(e)))
+    # end def finish
 
 class TCPClient(object):
     logger = logging.getLogger('pipboy.TCPClient')
@@ -813,14 +879,27 @@ class Console(cmd.Cmd):
         self.model = Model()
         self.view = View(self.model)
         self.client = None
-        readline.set_completer_delims(readline.get_completer_delims().translate(None, '$[]'))
+        readline.set_completer_delims(readline.get_completer_delims().translate(None, '$[]#'))
 
 
     def emptyline(self):
         pass
 
-    def do_EOF(self, line):
+    def do_exit(self, line):
+        """
+        `exit` - Shut down and exit.
+        """
+        self.do_stop(line)
+        self.do_disconnect(line)
         return True
+    # end def do_exit
+
+    def do_EOF(self, line):
+        """
+        End of file on input is processed as the command `EOF`. This just calls the `exit` command.
+        """
+        return self.do_stop(line)
+    # end def do_EOF
 
     def complete_loglevel(self, text, line, begidx, endidx):
         return [i
@@ -899,9 +978,9 @@ class Console(cmd.Cmd):
         """
         if hasattr(self, "client") and self.client:
             self.client.disconnect()
+            print("Disconnected.")
         else:
             self.logger.warn("Not connected.")
-        print("Disconnect - %s" % line)
 
     def do_autoconnect(self, line):
         """
@@ -921,27 +1000,47 @@ class Console(cmd.Cmd):
         if not text:
             return ['$']
         else:
-            _id = self.model.get_id(text)
-            self.logger.debug(str(_id))
-            if _id == None:
-                tmp = re.split('(\.|\[)[^.[]*$', text)
-                _id = self.model.get_id(tmp[0])
-            if _id != None:
-                item = self.model.get_item(_id)
-                if item:
-                    children = None
-                    if type(item) == list:
-                        children = item
-                    elif type(item) == dict:
-                        children = item.values()
-                    if children:
-                        result = []
-                        for child in children:
-                            child_path = self.model.get_path(child)
-                            if child_path and child_path.lower().startswith(
-                                    text.lower()):
-                                result.append(child_path)
-                        return result
+            if text.startswith("$"):  # path
+                _id = self.model.get_id(text)
+                self.logger.debug(str(_id))
+                if _id == None:
+                    tmp = re.split('(\.|\[)[^.[]*$', text)
+                    _id = self.model.get_id(tmp[0])
+                if _id != None:
+                    item = self.model.get_item(_id)
+                    if item:
+                        children = None
+                        if type(item) == list:
+                            children = item
+                        elif type(item) == dict:
+                            children = item.values()
+                        if children:
+                            result = []
+                            for child in children:
+                                child_path = self.model.get_path(child)
+                                if child_path and child_path.lower().startswith(
+                                        text.lower()):
+                                    result.append(child_path)
+                            return result
+            elif text.startswith("#"):  # id
+                _id = text[1:].lower()
+                results = set()
+                id_len = len(_id)
+                for key in self.model.get_keys():
+                    if str(key).startswith(_id):
+                        key_len = len(str(key))
+                        #print("0:" + str(key))
+                        if key_len > id_len + 1:
+                            #print("2:" + str(key))
+                            results.add("#" + str(key)[:id_len+1])
+                        else:
+                            #print("3:" + str(key))
+                            results.add("#" + str(key))
+                        # end if length
+                    # end if startswith
+                # end for keys
+                return list(results)
+            # end if startswith
         return None
 
     def complete_get(self, text, line, begidx, endidx):
@@ -949,14 +1048,28 @@ class Console(cmd.Cmd):
 
     def do_get(self, line):
         """
-        `get <path>` - gets the value at path from the database (e.g. get $.PlayerInfo.PlayerName) (complete with Tab)
+        `get <path/id>` - gets the value at path from the database (e.g. get $.PlayerInfo.PlayerName or #29979) (complete with Tab)
         """
-        for path in re.split('\s+', line.strip()):
-            _id = self.model.get_id(path)
-            if type(_id) == int:
-                print "0x%x - %s" % (_id, str(self.model.get_item(_id)))
-            else:
-                print "Path not found - %s" % path
+        line = line.strip()
+        if line.startswith("$"):  # path, not a id
+            for path in re.split('\s+', line):
+                _id = self.model.get_id(path)
+                if type(_id) == int:
+                    print("%d - %s" % (_id, str(self.model.get_item(_id))))
+                else:
+                    print("Path not found - %s" % path)
+                # end if
+            # end for split
+        elif line.startswith("#"):
+            _id = self.model.get_id(line)
+            if _id is None:
+                print("Id not valid - %s" % line[1:])
+                return
+            # end if None
+            print("{id} - {data}".format(id=_id, data= self.model.get_item(_id)))
+            # end try
+        # end if startswith
+    # end def
 
     def complete_set(self, text, line, begidx, endidx):
         return self.__complete_path(text)

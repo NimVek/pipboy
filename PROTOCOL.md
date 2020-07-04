@@ -103,7 +103,7 @@ struct DictEntry {
 Following JSON
 
 ```JSON
-{ "foo" : 
+{ "foo" :
   { "bar": "baz",
     "list": [ "one", "two", 3 ]
   }
@@ -112,7 +112,7 @@ Following JSON
 
 will result in this database
 
-| Index  |  Value | 
+| Index  |  Value |
 |---|---|
 | 0 | { "foo": 1 } |
 | 1 | { "bar": 2, "list": 3 } |

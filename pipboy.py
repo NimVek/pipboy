@@ -956,7 +956,7 @@ class Console(cmd.Cmd):
         self.view = View(self.model)
         self.client = None
         readline.set_completer_delims(
-            readline.get_completer_delims().translate(None, "$[]")
+            readline.get_completer_delims().translate(str.maketrans("", "", "$[]"))
         )
 
     def emptyline(self):

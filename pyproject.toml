@@ -5,7 +5,7 @@ build-backend = "poetry.masonry.api"
 [tool.poetry]
 name = "pipboy"
 version = "0.0.1"
-description = "A MUD client written in python"
+description = "Proxy for Fallout 4 Companion App"
 authors = ["NimVek <NimVek@users.noreply.github.com>"]
 license = "GPL-3.0-or-later"
 
@@ -16,14 +16,12 @@ repository = "https://github.com/NimVek/pipboy"
 classifiers = [
     "Intended Audience :: End Users/Desktop",
     "Topic :: Games/Entertainment",
-    "Topic :: Games/Entertainment :: Multi-User Dungeons (MUD)",
     "Operating System :: OS Independent",
     "Natural Language :: English",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
-    "Framework :: Twisted",
     "Development Status :: 3 - Alpha"
 ]
 

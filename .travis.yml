@@ -1,0 +1,21 @@
+language: python
+dist: focal
+python: "3.8"
+
+cache:
+  pip: true
+  directories:
+    - $HOME/.cache/pre-commit
+
+
+stages:
+  - lint
+
+jobs:
+  include:
+    - stage: lint
+      install:
+        - pip install pre-commit
+        - pre-commit install-hooks
+      script:
+        - pre-commit run --all-files

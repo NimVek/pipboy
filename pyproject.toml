@@ -1,0 +1,61 @@
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
+
+[tool.poetry]
+name = "pipboy"
+version = "0.0.1"
+description = "A MUD client written in python"
+authors = ["NimVek <NimVek@users.noreply.github.com>"]
+license = "GPL-3.0-or-later"
+
+readme = "README.md"
+
+repository = "https://github.com/NimVek/pipboy"
+
+classifiers = [
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Games/Entertainment",
+    "Topic :: Games/Entertainment :: Multi-User Dungeons (MUD)",
+    "Operating System :: OS Independent",
+    "Natural Language :: English",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Framework :: Twisted",
+    "Development Status :: 3 - Alpha"
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+pytest-cov = "^2.10.0"
+pre-commit = "^2.5.1"
+black = "^19.10b0"
+flake8 = "^3.8.3"
+mypy = "^0.782"
+isort = "^4.3.21"
+coveralls = "^2.0.0"
+
+[tool.poetry.scripts]
+pipboy = "pipboy:main"
+
+[tool.isort]
+line_length = 88
+multi_line_output = 3
+balanced_wrapping = true
+atomic = true
+lines_after_imports = 2
+lines_between_types = 1
+combine_star = true
+include_trailing_comma = true
+use_parentheses = true
+
+known_first_party = "pipboy"
+known_third_party = []
+
+[tool.black]
+line-length = 88

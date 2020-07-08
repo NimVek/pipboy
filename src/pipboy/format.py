@@ -32,7 +32,7 @@ class TCPFormat(object):
     def __load_list(stream):
         value = []
         (_count,) = struct.unpack("<H", stream.read(2))
-        for i in range(0, _count):
+        for _i in range(0, _count):
             (tmp,) = struct.unpack("<I", stream.read(4))
             value.append(tmp)
         return value
@@ -41,12 +41,12 @@ class TCPFormat(object):
     def __load_dict(stream):
         value = {}
         (_count,) = struct.unpack("<H", stream.read(2))
-        for i in range(0, _count):
+        for _i in range(0, _count):
             (ref,) = struct.unpack("<I", stream.read(4))
             attribute = TCPFormat.__load_cstr(stream)
             value[attribute] = ref
         (_count,) = struct.unpack("<H", stream.read(2))
-        for i in range(0, _count):
+        for _i in range(0, _count):
             (ref,) = struct.unpack("<I", stream.read(4))
         return value
 
@@ -335,7 +335,7 @@ class PipboyFormat(object):
         children = []
         (_count,) = struct.unpack("<I", stream.read(4))
         value = [None] * _count
-        for i in range(0, _count):
+        for _i in range(0, _count):
             (_index,) = struct.unpack("<I", stream.read(4))
             (_id, child) = PipboyFormat.__load_value(stream)
             value[_index] = _id
@@ -347,7 +347,7 @@ class PipboyFormat(object):
         children = []
         (_count,) = struct.unpack("<I", stream.read(4))
         value = {}
-        for i in range(0, _count):
+        for _i in range(0, _count):
             key = PipboyFormat.__load_key(stream)
             (_id, child) = PipboyFormat.__load_value(stream)
             value[key] = _id

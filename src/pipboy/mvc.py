@@ -85,7 +85,7 @@ class Model(object):
     def __get_id(self, _id, path):
         if not path:
             return _id
-        match = re.match("^(\.([a-zA-Z0-9]+)|\[([0-9]+)\])(.*)$", path)
+        match = re.match(r"^(\.([a-zA-Z0-9]+)|\[([0-9]+)\])(.*)$", path)
         if match:
             item = self.get_item(_id)
             groups = match.groups()

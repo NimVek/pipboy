@@ -7,6 +7,8 @@ import re
 import readline
 import threading
 
+from typing import Optional
+
 from .format import BuiltinFormat, PipboyFormat, TCPFormat
 from .mvc import Model, View
 from .tcp import TCPClient, TCPServer
@@ -49,6 +51,8 @@ class Console(cmd.Cmd):
         readline.set_completer_delims(
             readline.get_completer_delims().translate(str.maketrans("", "", "$[]"))
         )
+        self.tcp_server: Optional[ServerThread] = None
+        self.udp_server: Optional[ServerThread] = None
 
     def emptyline(self):
         pass
@@ -163,7 +167,7 @@ class Console(cmd.Cmd):
             _id = self.model.get_id(text)
             self.logger.debug(str(_id))
             if _id is None:
-                tmp = re.split("(\.|\[)[^.[]*$", text)
+                tmp = re.split(r"(\.|\[)[^.[]*$", text)
                 _id = self.model.get_id(tmp[0])
             if _id is not None:
                 item = self.model.get_item(_id)
@@ -191,7 +195,7 @@ class Console(cmd.Cmd):
         """
         `get <path>` - gets the value at path from the database (e.g. get $.PlayerInfo.PlayerName) (complete with Tab)
         """
-        for path in re.split("\s+", line.strip()):
+        for path in re.split(r"\s+", line.strip()):
             _id = self.model.get_id(path)
             if type(_id) == int:
                 print("0x%x - %s" % (_id, str(self.model.get_item(_id))))
@@ -266,12 +270,12 @@ class Console(cmd.Cmd):
         """
         `start` - starts server so app can connect
         """
-        if not hasattr(self, "tcp_server") or self.tcp_server is None:
+        if self.tcp_server is None:
             self.tcp_server = ServerThread(self.model, TCPServer)
             self.tcp_server.start()
         else:
             self.logger.warn("TCP server already running.")
-        if not hasattr(self, "udp_server") or self.udp_server is None:
+        if self.udp_server is None:
             self.udp_server = ServerThread(self.model, UDPServer)
             self.udp_server.start()
         else:
@@ -283,13 +287,13 @@ class Console(cmd.Cmd):
         `stop` - stops server
         """
         self.logger.debug("Stop requested.")
-        if hasattr(self, "udp_server") and self.udp_server:
+        if self.udp_server:
             self.udp_server.stop()
             self.udp_server = None
             self.logger.debug("Stopped UDP.")
         else:
             self.logger.info("UDP already stopped.")
-        if hasattr(self, "tcp_server") and self.tcp_server:
+        if self.tcp_server:
             self.tcp_server.stop()
             self.tcp_server = None
             self.logger.debug("Stopped TCP.")

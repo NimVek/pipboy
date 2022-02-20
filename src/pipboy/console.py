@@ -61,7 +61,7 @@ class Console(cmd.Cmd):
         return True
 
     def complete_loglevel(self, text, line, begidx, endidx):
-        return [i for i in logging._levelNames if type(i) == str and i.startswith(text)]
+        return [i for i in logging._nameToLevel if i.startswith(text)]
 
     def do_loglevel(self, line):
         """

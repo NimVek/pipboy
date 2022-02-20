@@ -26,7 +26,7 @@ class TCPFormat(object):
             if byte == b"\x00":
                 return buffer.decode()
             else:
-                buffer+=byte
+                buffer += byte
 
     @staticmethod
     def __load_list(stream):

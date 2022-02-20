@@ -113,7 +113,10 @@ class TCPHandler:
 
     def send_command(self, _type, args):
         self.send(
-            5, json.dumps({"type": _type, "args": args, "id": self.__command_idx}).encode()
+            5,
+            json.dumps(
+                {"type": _type, "args": args, "id": self.__command_idx}
+            ).encode(),
         )
         self.__command_idx += 1
 

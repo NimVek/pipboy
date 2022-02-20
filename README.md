@@ -6,8 +6,8 @@ You can use it standalone, with the app, then running as proxy, or as a server f
 
 ## Usage
 
-To use this code you can install it with `python -m pip install .` or
-for development you can use `poetry install`.
+To use this code you can install it with `python -m pip install .` and then run with `pipboy`.
+Or use `poetry install` and `poetry run pipboy` to run in virtual environment.
 
 | Command | Description |
 |---|---|

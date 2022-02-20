@@ -23,10 +23,10 @@ class TCPFormat(object):
         buffer = bytearray()
         while True:
             byte = stream.read(1)
-            if byte == "\x00":
-                return str(buffer)
+            if byte == b"\x00":
+                return buffer.decode()
             else:
-                buffer.append(byte)
+                buffer+=byte
 
     @staticmethod
     def __load_list(stream):
@@ -85,8 +85,8 @@ class TCPFormat(object):
 
     @staticmethod
     def __dump_cstr(stream, string):
-        stream.write(string)
-        stream.write("\x00")
+        stream.write(string.encode())
+        stream.write(b"\x00")
 
     @staticmethod
     def __dump_head(stream, _id, typ):

@@ -54,19 +54,19 @@ class TCPHandler:
 
     def __handle_heartbeat(self, data):
         self.logger.debug("handle_heartbeat")
-        self.send(0, "")
+        self.send(0, b"")
 
     def __handle_config(self, data):
         self.logger.debug("handle_config")
         try:
-            config = json.loads(data)
+            config = json.loads(data.decode())
             self.logger.info(str(config))
         except Exception as e:
             self.logger.error(str(e))
 
     def __handle_update(self, data):
         self.logger.debug("handle_update")
-        stream = io.StringIO(data)
+        stream = io.BytesIO(data)
         self.model.update(TCPFormat.load(stream))
 
     def __handle_map(self, data):
@@ -76,7 +76,7 @@ class TCPHandler:
     def __handle_command(self, data):
         self.logger.debug("handle_command")
         try:
-            command = json.loads(data)
+            command = json.loads(data.decode())
             self.model.command(command["type"], command["args"])
         except Exception as e:
             self.logger.error(str(e))
@@ -105,7 +105,7 @@ class TCPHandler:
                 self.logger.warn("Error Unknown Channel %d : %s" % (channel, data))
 
     def send_updates(self, items):
-        stream = io.StringIO()
+        stream = io.BytesIO()
         TCPFormat.dump(items, stream)
         self.send(3, stream.getvalue())
 
@@ -113,7 +113,7 @@ class TCPHandler:
 
     def send_command(self, _type, args):
         self.send(
-            5, json.dumps({"type": _type, "args": args, "id": self.__command_idx})
+            5, json.dumps({"type": _type, "args": args, "id": self.__command_idx}).encode()
         )
         self.__command_idx += 1
 
@@ -136,7 +136,7 @@ class TCPServerHandler(TCPHandler, socketserver.StreamRequestHandler):
         socketserver.StreamRequestHandler.setup(self)
         self.model = self.server.model
         assert isinstance(self.model, Model)
-        self.send(1, json.dumps({"lang": "en", "version": "1.1.30.0"}))
+        self.send(1, json.dumps({"lang": "en", "version": "1.1.30.0"}).encode())
         self.send_updates(self.model.dump(0, True))
         self.model.register("update", self.listen_update)
         self.model.register("map_update", self.listen_map_update)
@@ -168,7 +168,7 @@ class TCPClientHandler(TCPHandler, socketserver.StreamRequestHandler):
     def heartbeat(self):
         while self.model.server[self.switch]:
             self.logger.debug("heartbeat")
-            self.send(0, "")
+            self.send(0, b"")
             time.sleep(1)
 
     def listen_command(self, _type, args):

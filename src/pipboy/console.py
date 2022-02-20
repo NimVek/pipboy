@@ -247,7 +247,7 @@ class Console(cmd.Cmd):
         """
         `savejson <file>` - saves database to JSON-file
         """
-        with open(line, "wb") as stream:
+        with open(line, "w") as stream:
             json.dump(
                 BuiltinFormat.dump_model(self.model), stream, indent=4, sort_keys=True
             )

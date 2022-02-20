@@ -18,7 +18,7 @@ class UDPClient(object):
         udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, True)
         udp_socket.settimeout(timeout)
         udp_socket.sendto(
-            json.dumps({"cmd": "autodiscover"}), ("<broadcast>", UDP_PORT)
+            json.dumps({"cmd": "autodiscover"}).encode(), ("<broadcast>", UDP_PORT)
         )
         result = []
         polling = True
@@ -27,7 +27,7 @@ class UDPClient(object):
                 received, fromaddr = udp_socket.recvfrom(1024)
                 ip_addr, port = fromaddr
                 try:
-                    data = json.loads(received)
+                    data = json.loads(received.decode())
                     UDPClient.logger.debug(
                         "Discovered {machine_type} at {ip}:{port} ({is_busy})".format(
                             machine_type=data.get("MachineType"),
@@ -70,7 +70,7 @@ class UDPHandler(socketserver.DatagramRequestHandler):
             self.logger.error(str(e))
             return
         if data and data.get("cmd") == "autodiscover":
-            json.dump(self.DISCOVER_MESSAGE, self.wfile)
+            self.wfile.write(json.dumps(self.DISCOVER_MESSAGE).encode())
             self.logger.info(
                 "Autodiscover from {ip}:{port}".format(ip=ip_addr, port=port)
             )

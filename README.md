@@ -7,7 +7,7 @@ You can use it standalone, with the app, then running as proxy, or as a server f
 ## Usage
 
 To use this code you can install it with `python -m pip install .` or
-for development you kan use `poetry install`.
+for development you can use `poetry install`.
 
 | Command | Description |
 |---|---|

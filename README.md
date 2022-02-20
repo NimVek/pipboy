@@ -6,9 +6,8 @@ You can use it standalone, with the app, then running as proxy, or as a server f
 
 ## Usage
 
-To run this little script only a working python interpreter is needed.
-
-Simply run `pipboy.py` it has a `cmd.Cmd` based interpreter.
+To use this code you can install it with `python -m pip install .` or
+for development you kan use `poetry install`.
 
 | Command | Description |
 |---|---|
@@ -34,6 +33,8 @@ Simply run `pipboy.py` it has a `cmd.Cmd` based interpreter.
 Thanks to @luckydonald for finding and fixing ;)
 
 * does not check for closed connection
+
+Thanks to @cyberdoof07 for finding issue in documentation.
 
 Please remark this is still in development, so no checking of consistency is done, whether on user input nor on network input.
 I've investigated only the Android-App <-> PC Game Connection, maybe it works with other combination, maybe not.

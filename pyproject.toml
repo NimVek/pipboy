@@ -34,7 +34,7 @@ pytest-cov = "^3.0.0"
 pre-commit = "^2.5.1"
 black = "^22.1"
 flake8 = "^4.0.1"
-mypy = "^0.931"
+mypy = "^1.2"
 isort = "^5.0.4"
 coveralls = "^3.3.1"
 
